@@ -1,0 +1,5019 @@
+openapi: 3.0.3
+info:
+  title: PaySphere HR & Payroll API
+  version: 1.0.0
+  description: Industrial HR, Attendance, Contractor & Payroll Management REST API
+paths:
+  /api/advances/:
+    get:
+      operationId: advances_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - advances
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdvanceList'
+          description: ''
+    post:
+      operationId: advances_create
+      tags:
+      - advances
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Advance'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Advance'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Advance'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Advance'
+          description: ''
+  /api/advances/{id}/:
+    get:
+      operationId: advances_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - advances
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Advance'
+          description: ''
+    put:
+      operationId: advances_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - advances
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Advance'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Advance'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Advance'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Advance'
+          description: ''
+    patch:
+      operationId: advances_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - advances
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdvance'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdvance'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdvance'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Advance'
+          description: ''
+    delete:
+      operationId: advances_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - advances
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/advances/{id}/approve/:
+    post:
+      operationId: advances_approve_create
+      description: Approve an advance request.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - advances
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/advances/{id}/repay/:
+    post:
+      operationId: advances_repay_create
+      description: |-
+        Record a manual repayment or adjustment against an outstanding advance.
+        Guarantees repayment amount cannot exceed outstanding balance.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - advances
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/approve-bulk/:
+    post:
+      operationId: attendance_approve_bulk_create
+      description: Approve or Reject attendance records in bulk.
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/bulk/:
+    post:
+      operationId: attendance_bulk_create
+      description: |-
+        Bulk save attendance records (Manual Day-wise or Worker-wise).
+        Saves as Draft or Submits for Review.
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/export/:
+    get:
+      operationId: attendance_export_retrieve
+      description: Export attendance register to CSV format.
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/import/:
+    post:
+      operationId: attendance_import_create
+      description: Upload CSV or Excel file of attendance, validate rows, and insert/update
+        records.
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/import/batches/:
+    get:
+      operationId: attendance_import_batches_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAttendanceImportBatchList'
+          description: ''
+  /api/attendance/records/:
+    get:
+      operationId: attendance_records_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAttendanceRecordList'
+          description: ''
+    post:
+      operationId: attendance_records_create
+      tags:
+      - attendance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttendanceRecord'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AttendanceRecord'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AttendanceRecord'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceRecord'
+          description: ''
+  /api/attendance/records/{id}/:
+    get:
+      operationId: attendance_records_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceRecord'
+          description: ''
+    put:
+      operationId: attendance_records_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attendance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttendanceRecord'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AttendanceRecord'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AttendanceRecord'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceRecord'
+          description: ''
+    patch:
+      operationId: attendance_records_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attendance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAttendanceRecord'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAttendanceRecord'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAttendanceRecord'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceRecord'
+          description: ''
+    delete:
+      operationId: attendance_records_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/attendance/shifts/:
+    get:
+      operationId: attendance_shifts_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedShiftList'
+          description: ''
+    post:
+      operationId: attendance_shifts_create
+      tags:
+      - attendance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Shift'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Shift'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Shift'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shift'
+          description: ''
+  /api/attendance/shifts/{id}/:
+    get:
+      operationId: attendance_shifts_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shift'
+          description: ''
+    put:
+      operationId: attendance_shifts_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attendance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Shift'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Shift'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Shift'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shift'
+          description: ''
+    patch:
+      operationId: attendance_shifts_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attendance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedShift'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedShift'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedShift'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shift'
+          description: ''
+    delete:
+      operationId: attendance_shifts_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/attendance/stats/daily/:
+    get:
+      operationId: attendance_stats_daily_retrieve
+      description: Returns dynamic day-wise attendance counters for any specified
+        date.
+      tags:
+      - attendance
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/audit-logs/:
+    get:
+      operationId: audit_logs_list
+      description: Audit log list endpoint with filters.
+      parameters:
+      - in: query
+        name: action
+        schema:
+          type: string
+          enum:
+          - APPROVE
+          - CREATE
+          - DELETE
+          - IMPORT
+          - LOCK
+          - LOGIN
+          - PAY
+          - REJECT
+          - REVERSE
+          - UPDATE
+        description: |-
+          * `CREATE` - Create
+          * `UPDATE` - Update
+          * `DELETE` - Delete
+          * `APPROVE` - Approve
+          * `REJECT` - Reject
+          * `LOCK` - Lock
+          * `PAY` - Record Payment
+          * `REVERSE` - Reverse
+          * `LOGIN` - User Login
+          * `IMPORT` - Import Batch
+      - in: query
+        name: model_name
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - audit-logs
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAuditLogList'
+          description: ''
+  /api/auth/login/:
+    post:
+      operationId: auth_login_create
+      description: Authenticate user credentials and return an authentication token.
+      tags:
+      - auth
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/logout/:
+    post:
+      operationId: auth_logout_create
+      description: Revoke current user authentication token.
+      tags:
+      - auth
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/me/:
+    get:
+      operationId: auth_me_retrieve
+      description: Return profile data of the currently authenticated user.
+      tags:
+      - auth
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/company/:
+    get:
+      operationId: company_retrieve
+      description: Retrieve or update company organization settings.
+      tags:
+      - company
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: company_update
+      description: Retrieve or update company organization settings.
+      tags:
+      - company
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contractors/:
+    get:
+      operationId: contractors_list
+      parameters:
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedContractorList'
+          description: ''
+    post:
+      operationId: contractors_create
+      tags:
+      - contractors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Contractor'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Contractor'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Contractor'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contractor'
+          description: ''
+  /api/contractors/{id}/:
+    get:
+      operationId: contractors_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contractor'
+          description: ''
+    put:
+      operationId: contractors_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Contractor'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Contractor'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Contractor'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contractor'
+          description: ''
+    patch:
+      operationId: contractors_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedContractor'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedContractor'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedContractor'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contractor'
+          description: ''
+    delete:
+      operationId: contractors_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/contractors/assignments/:
+    get:
+      operationId: contractors_assignments_list
+      parameters:
+      - in: query
+        name: contractor
+        schema:
+          type: integer
+      - in: query
+        name: department
+        schema:
+          type: integer
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: worker
+        schema:
+          type: integer
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedContractorWorkerAssignmentList'
+          description: ''
+    post:
+      operationId: contractors_assignments_create
+      tags:
+      - contractors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractorWorkerAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractorWorkerAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractorWorkerAssignment'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractorWorkerAssignment'
+          description: ''
+  /api/contractors/bills/:
+    get:
+      operationId: contractors_bills_list
+      parameters:
+      - in: query
+        name: contractor
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - Approved
+          - Draft
+          - Paid
+          - Rejected
+          - Under Review
+        description: |-
+          * `Draft` - Draft
+          * `Under Review` - Under Review
+          * `Approved` - Approved
+          * `Paid` - Paid
+          * `Rejected` - Rejected
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedContractorBillList'
+          description: ''
+    post:
+      operationId: contractors_bills_create
+      tags:
+      - contractors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractorBill'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractorBill'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractorBill'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractorBill'
+          description: ''
+  /api/contractors/bills/{id}/:
+    get:
+      operationId: contractors_bills_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractorBill'
+          description: ''
+    put:
+      operationId: contractors_bills_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractorBill'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractorBill'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractorBill'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractorBill'
+          description: ''
+    patch:
+      operationId: contractors_bills_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedContractorBill'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedContractorBill'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedContractorBill'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractorBill'
+          description: ''
+    delete:
+      operationId: contractors_bills_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/contractors/bills/{id}/approve/:
+    post:
+      operationId: contractors_bills_approve_create
+      description: Approve a contractor invoice after verifying billed man-days and
+        overtime.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contractors/bills/{id}/pay/:
+    post:
+      operationId: contractors_bills_pay_create
+      description: Record full or partial payment against an approved contractor invoice.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contractors/contracts/:
+    get:
+      operationId: contractors_contracts_list
+      parameters:
+      - in: query
+        name: billing_basis
+        schema:
+          type: string
+          enum:
+          - Fixed Monthly
+          - Per Day
+          - Per Hour
+          - Piece Rate
+        description: |-
+          * `Per Day` - Per Day
+          * `Per Hour` - Per Hour
+          * `Piece Rate` - Piece Rate
+          * `Fixed Monthly` - Fixed Monthly
+      - in: query
+        name: contractor
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - Active
+          - Expired
+          - Terminated
+        description: |-
+          * `Active` - Active
+          * `Expired` - Expired
+          * `Terminated` - Terminated
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedContractList'
+          description: ''
+    post:
+      operationId: contractors_contracts_create
+      tags:
+      - contractors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Contract'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Contract'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Contract'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+          description: ''
+  /api/contractors/contracts/{id}/:
+    get:
+      operationId: contractors_contracts_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+          description: ''
+    put:
+      operationId: contractors_contracts_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Contract'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Contract'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Contract'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+          description: ''
+    patch:
+      operationId: contractors_contracts_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedContract'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedContract'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedContract'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+          description: ''
+    delete:
+      operationId: contractors_contracts_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - contractors
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/dashboard/stats/:
+    get:
+      operationId: dashboard_stats_retrieve
+      description: |-
+        Aggregated enterprise metrics for the Executive Dashboard.
+        Reconciles real counts from Worker, Attendance, Payroll, and Advance models.
+      tags:
+      - dashboard
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/datastore/{key}/:
+    get:
+      operationId: datastore_retrieve
+      description: |-
+        Get or update persistent module collections in the database.
+        Supports Contractors, Advances, Attendance, and other custom data.
+      parameters:
+      - in: path
+        name: key
+        schema:
+          type: string
+        required: true
+      tags:
+      - datastore
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: datastore_create
+      description: |-
+        Get or update persistent module collections in the database.
+        Supports Contractors, Advances, Attendance, and other custom data.
+      parameters:
+      - in: path
+        name: key
+        schema:
+          type: string
+        required: true
+      tags:
+      - datastore
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/departments/:
+    get:
+      operationId: departments_list
+      description: |-
+        API ViewSet for viewing and managing Departments.
+        Requires authentication for access.
+      parameters:
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - departments
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDepartmentList'
+          description: ''
+    post:
+      operationId: departments_create
+      description: |-
+        API ViewSet for viewing and managing Departments.
+        Requires authentication for access.
+      tags:
+      - departments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Department'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Department'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Department'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+          description: ''
+  /api/departments/{id}/:
+    get:
+      operationId: departments_retrieve
+      description: |-
+        API ViewSet for viewing and managing Departments.
+        Requires authentication for access.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Department.
+        required: true
+      tags:
+      - departments
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+          description: ''
+    put:
+      operationId: departments_update
+      description: |-
+        API ViewSet for viewing and managing Departments.
+        Requires authentication for access.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Department.
+        required: true
+      tags:
+      - departments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Department'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Department'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Department'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+          description: ''
+    patch:
+      operationId: departments_partial_update
+      description: |-
+        API ViewSet for viewing and managing Departments.
+        Requires authentication for access.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Department.
+        required: true
+      tags:
+      - departments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDepartment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDepartment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDepartment'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+          description: ''
+    delete:
+      operationId: departments_destroy
+      description: |-
+        API ViewSet for viewing and managing Departments.
+        Requires authentication for access.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Department.
+        required: true
+      tags:
+      - departments
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/health/:
+    get:
+      operationId: health_retrieve
+      description: Check the health of the API and verify database connectivity.
+      tags:
+      - health
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/payroll/config/:
+    get:
+      operationId: payroll_config_retrieve
+      description: Get or update active payroll calculation rules & statutory percentage
+        rates.
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: payroll_config_update
+      description: Get or update active payroll calculation rules & statutory percentage
+        rates.
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/payroll/lines/:
+    get:
+      operationId: payroll_lines_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPayrollLineList'
+          description: ''
+  /api/payroll/lines/{line_pk}/pay/:
+    post:
+      operationId: payroll_lines_pay_create
+      description: Record full or partial payment against a worker's payroll line.
+      parameters:
+      - in: path
+        name: line_pk
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/payroll/lines/{line_pk}/payslip/:
+    get:
+      operationId: payroll_lines_payslip_retrieve
+      description: Get detailed printable payslip payload for a worker's payroll line.
+      parameters:
+      - in: path
+        name: line_pk
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/payroll/lines/{id}/:
+    get:
+      operationId: payroll_lines_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollLine'
+          description: ''
+  /api/payroll/periods/:
+    get:
+      operationId: payroll_periods_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPayrollPeriodList'
+          description: ''
+    post:
+      operationId: payroll_periods_create
+      tags:
+      - payroll
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayrollPeriod'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PayrollPeriod'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PayrollPeriod'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollPeriod'
+          description: ''
+  /api/payroll/periods/{id}/:
+    get:
+      operationId: payroll_periods_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollPeriod'
+          description: ''
+    put:
+      operationId: payroll_periods_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayrollPeriod'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PayrollPeriod'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PayrollPeriod'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollPeriod'
+          description: ''
+    patch:
+      operationId: payroll_periods_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPayrollPeriod'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPayrollPeriod'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPayrollPeriod'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollPeriod'
+          description: ''
+    delete:
+      operationId: payroll_periods_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/payroll/periods/{id}/approve/:
+    post:
+      operationId: payroll_periods_approve_create
+      description: Approve payroll cycle and post advance deductions to the advance
+        ledger.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/payroll/periods/{id}/calculate/:
+    post:
+      operationId: payroll_periods_calculate_create
+      description: |-
+        Compute full payroll sheet for all active workers for the given period.
+        Aggregates approved attendance, computes statutory deductions, applies advances.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/payroll/periods/{id}/export/:
+    get:
+      operationId: payroll_periods_export_retrieve
+      description: Export complete monthly payroll sheet to CSV.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/payroll/periods/{id}/lock/:
+    post:
+      operationId: payroll_periods_lock_create
+      description: Lock approved payroll against any further changes and freeze corresponding
+        attendance.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - payroll
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/users/:
+    get:
+      operationId: users_list
+      description: Manage system users (Super Admin / HR Admin).
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - users
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserList'
+          description: ''
+    post:
+      operationId: users_create
+      description: Manage system users (Super Admin / HR Admin).
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/User'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/workers/:
+    get:
+      operationId: workers_list
+      description: |-
+        API ViewSet for managing workers.
+        Endpoints:
+        - GET /api/workers/ - list with search & department filtering
+        - POST /api/workers/ - create worker with validation
+        - GET /api/workers/<id>/ - worker details
+        - PUT /api/workers/<id>/ - full update
+        - PATCH /api/workers/<id>/ - partial update
+        - POST/PATCH /api/workers/<id>/deactivate/ - authorised worker deactivation
+        - DELETE /api/workers/<id>/ - delete worker or mark inactive
+      parameters:
+      - in: query
+        name: department
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - Active
+          - Inactive
+          - On Leave
+          - Terminated
+        description: |-
+          Current employment status
+
+          * `Active` - Active
+          * `Inactive` - Inactive
+          * `On Leave` - On Leave
+          * `Terminated` - Terminated
+      - in: query
+        name: worker_type
+        schema:
+          type: string
+          enum:
+          - Contractor
+          - Permanent
+        description: |-
+          Permanent or Contractor
+
+          * `Permanent` - Permanent
+          * `Contractor` - Contractor
+      tags:
+      - workers
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkerList'
+          description: ''
+    post:
+      operationId: workers_create
+      description: |-
+        API ViewSet for managing workers.
+        Endpoints:
+        - GET /api/workers/ - list with search & department filtering
+        - POST /api/workers/ - create worker with validation
+        - GET /api/workers/<id>/ - worker details
+        - PUT /api/workers/<id>/ - full update
+        - PATCH /api/workers/<id>/ - partial update
+        - POST/PATCH /api/workers/<id>/deactivate/ - authorised worker deactivation
+        - DELETE /api/workers/<id>/ - delete worker or mark inactive
+      tags:
+      - workers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Worker'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Worker'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Worker'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Worker'
+          description: ''
+  /api/workers/{id}/:
+    get:
+      operationId: workers_retrieve
+      description: |-
+        API ViewSet for managing workers.
+        Endpoints:
+        - GET /api/workers/ - list with search & department filtering
+        - POST /api/workers/ - create worker with validation
+        - GET /api/workers/<id>/ - worker details
+        - PUT /api/workers/<id>/ - full update
+        - PATCH /api/workers/<id>/ - partial update
+        - POST/PATCH /api/workers/<id>/deactivate/ - authorised worker deactivation
+        - DELETE /api/workers/<id>/ - delete worker or mark inactive
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Worker.
+        required: true
+      tags:
+      - workers
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerDetail'
+          description: ''
+    put:
+      operationId: workers_update
+      description: |-
+        API ViewSet for managing workers.
+        Endpoints:
+        - GET /api/workers/ - list with search & department filtering
+        - POST /api/workers/ - create worker with validation
+        - GET /api/workers/<id>/ - worker details
+        - PUT /api/workers/<id>/ - full update
+        - PATCH /api/workers/<id>/ - partial update
+        - POST/PATCH /api/workers/<id>/deactivate/ - authorised worker deactivation
+        - DELETE /api/workers/<id>/ - delete worker or mark inactive
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Worker.
+        required: true
+      tags:
+      - workers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Worker'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Worker'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Worker'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Worker'
+          description: ''
+    patch:
+      operationId: workers_partial_update
+      description: |-
+        API ViewSet for managing workers.
+        Endpoints:
+        - GET /api/workers/ - list with search & department filtering
+        - POST /api/workers/ - create worker with validation
+        - GET /api/workers/<id>/ - worker details
+        - PUT /api/workers/<id>/ - full update
+        - PATCH /api/workers/<id>/ - partial update
+        - POST/PATCH /api/workers/<id>/deactivate/ - authorised worker deactivation
+        - DELETE /api/workers/<id>/ - delete worker or mark inactive
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Worker.
+        required: true
+      tags:
+      - workers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedWorker'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedWorker'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedWorker'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Worker'
+          description: ''
+    delete:
+      operationId: workers_destroy
+      description: |-
+        API ViewSet for managing workers.
+        Endpoints:
+        - GET /api/workers/ - list with search & department filtering
+        - POST /api/workers/ - create worker with validation
+        - GET /api/workers/<id>/ - worker details
+        - PUT /api/workers/<id>/ - full update
+        - PATCH /api/workers/<id>/ - partial update
+        - POST/PATCH /api/workers/<id>/deactivate/ - authorised worker deactivation
+        - DELETE /api/workers/<id>/ - delete worker or mark inactive
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Worker.
+        required: true
+      tags:
+      - workers
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/workers/{id}/deactivate/:
+    post:
+      operationId: workers_deactivate_create
+      description: |-
+        Authorised deactivation endpoint for a worker.
+        Sets worker status to 'Inactive'.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Worker.
+        required: true
+      tags:
+      - workers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Worker'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Worker'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Worker'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Worker'
+          description: ''
+    patch:
+      operationId: workers_deactivate_partial_update
+      description: |-
+        Authorised deactivation endpoint for a worker.
+        Sets worker status to 'Inactive'.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Worker.
+        required: true
+      tags:
+      - workers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedWorker'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedWorker'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedWorker'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Worker'
+          description: ''
+components:
+  schemas:
+    ActionEnum:
+      enum:
+      - CREATE
+      - UPDATE
+      - DELETE
+      - APPROVE
+      - REJECT
+      - LOCK
+      - PAY
+      - REVERSE
+      - LOGIN
+      - IMPORT
+      type: string
+      description: |-
+        * `CREATE` - Create
+        * `UPDATE` - Update
+        * `DELETE` - Delete
+        * `APPROVE` - Approve
+        * `REJECT` - Reject
+        * `LOCK` - Lock
+        * `PAY` - Record Payment
+        * `REVERSE` - Reverse
+        * `LOGIN` - User Login
+        * `IMPORT` - Import Batch
+    Advance:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        advance_id:
+          type: string
+          description: Unique advance tracking ID (e.g. ADV-001 or FA-001)
+          maxLength: 50
+        worker:
+          type: integer
+        worker_id_code:
+          type: string
+          description: Unique identifier code for the worker (e.g. W001, EMP-101)
+          readOnly: true
+        worker_name:
+          type: string
+          description: Full name of the worker
+          readOnly: true
+        department_name:
+          type: string
+          description: Unique name of the department (e.g. Production, Maintenance)
+          readOnly: true
+        advance_type:
+          $ref: '#/components/schemas/AdvanceTypeEnum'
+        principal_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Original sanctioned advance amount
+        monthly_deduction:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Agreed deduction per payroll run
+        issue_date:
+          type: string
+          format: date
+        repayment_start_date:
+          type: string
+          format: date
+          nullable: true
+        reason:
+          type: string
+        status:
+          $ref: '#/components/schemas/AdvanceStatusEnum'
+        outstanding_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        approved_by:
+          type: integer
+          nullable: true
+        approved_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdvanceTransaction'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - advance_id
+      - approved_by_name
+      - created_at
+      - department_name
+      - id
+      - issue_date
+      - outstanding_balance
+      - principal_amount
+      - transactions
+      - updated_at
+      - worker
+      - worker_id_code
+      - worker_name
+    AdvanceStatusEnum:
+      enum:
+      - Pending
+      - Approved
+      - Rejected
+      - Completed
+      type: string
+      description: |-
+        * `Pending` - Pending
+        * `Approved` - Approved
+        * `Rejected` - Rejected
+        * `Completed` - Completed
+    AdvanceTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        advance:
+          type: integer
+        transaction_type:
+          $ref: '#/components/schemas/TransactionTypeEnum'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        balance_after:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        transaction_date:
+          type: string
+          format: date
+        reference_number:
+          type: string
+          maxLength: 100
+        notes:
+          type: string
+        created_by:
+          type: integer
+          nullable: true
+        created_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - advance
+      - amount
+      - balance_after
+      - created_at
+      - created_by_name
+      - id
+      - transaction_date
+      - transaction_type
+    AdvanceTypeEnum:
+      enum:
+      - Salary Advance
+      - Fixed Advance
+      type: string
+      description: |-
+        * `Salary Advance` - Salary Advance
+        * `Fixed Advance` - Fixed Advance
+    ApprovalStatusEnum:
+      enum:
+      - Draft
+      - Pending Review
+      - Approved
+      - Rejected
+      - Locked
+      type: string
+      description: |-
+        * `Draft` - Draft
+        * `Pending Review` - Pending Review
+        * `Approved` - Approved
+        * `Rejected` - Rejected
+        * `Locked` - Locked
+    AttendanceImportBatch:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        uploaded_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        department_name:
+          type: string
+          description: Unique name of the department (e.g. Production, Maintenance)
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        file_name:
+          type: string
+          maxLength: 255
+        file_format:
+          type: string
+          maxLength: 20
+        upload_timestamp:
+          type: string
+          format: date-time
+          readOnly: true
+        period_start:
+          type: string
+          format: date
+          nullable: true
+        period_end:
+          type: string
+          format: date
+          nullable: true
+        total_rows:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        valid_rows:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        invalid_rows:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        duplicate_rows:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        inserted_rows:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        updated_rows:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        errors_log: {}
+        status:
+          $ref: '#/components/schemas/AttendanceImportBatchStatusEnum'
+        completion_time:
+          type: string
+          format: date-time
+          nullable: true
+        uploaded_by:
+          type: integer
+          nullable: true
+        department:
+          type: integer
+          nullable: true
+      required:
+      - created_at
+      - department_name
+      - file_name
+      - id
+      - updated_at
+      - upload_timestamp
+      - uploaded_by_name
+    AttendanceImportBatchStatusEnum:
+      enum:
+      - Processing
+      - Completed
+      - Failed
+      type: string
+      description: |-
+        * `Processing` - Processing
+        * `Completed` - Completed
+        * `Failed` - Failed
+    AttendanceRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        worker:
+          type: integer
+        worker_id_code:
+          type: string
+          description: Unique identifier code for the worker (e.g. W001, EMP-101)
+          readOnly: true
+        worker_name:
+          type: string
+          description: Full name of the worker
+          readOnly: true
+        department_name:
+          type: string
+          description: Unique name of the department (e.g. Production, Maintenance)
+          readOnly: true
+        attendance_date:
+          type: string
+          format: date
+        shift:
+          type: integer
+          nullable: true
+        shift_name:
+          type: string
+          description: e.g. Day Shift (8:00 AM - 5:00 PM)
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/AttendanceRecordStatusEnum'
+        time_in:
+          type: string
+          description: e.g. 08:00 AM or 08:00
+          maxLength: 20
+        time_out:
+          type: string
+          description: e.g. 05:00 PM or 17:00
+          maxLength: 20
+        break_minutes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        working_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          description: Net working hours
+        overtime_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          description: Approved eligible overtime hours
+        approval_status:
+          $ref: '#/components/schemas/ApprovalStatusEnum'
+        remarks:
+          type: string
+        correction_reason:
+          type: string
+        source:
+          $ref: '#/components/schemas/SourceEnum'
+        approved_by:
+          type: integer
+          nullable: true
+        approved_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - approved_by_name
+      - attendance_date
+      - created_at
+      - department_name
+      - id
+      - shift_name
+      - updated_at
+      - worker
+      - worker_id_code
+      - worker_name
+    AttendanceRecordStatusEnum:
+      enum:
+      - Present
+      - Absent
+      - Leave
+      - Half Day
+      type: string
+      description: |-
+        * `Present` - Present
+        * `Absent` - Absent
+        * `Leave` - Leave
+        * `Half Day` - Half Day
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        actor:
+          type: integer
+          nullable: true
+        actor_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        action:
+          $ref: '#/components/schemas/ActionEnum'
+        model_name:
+          type: string
+          maxLength: 100
+        record_id:
+          type: string
+          maxLength: 100
+        details: {}
+        ip_address:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - action
+      - actor_name
+      - created_at
+      - id
+      - model_name
+    BillingBasisEnum:
+      enum:
+      - Per Day
+      - Per Hour
+      - Piece Rate
+      - Fixed Monthly
+      type: string
+      description: |-
+        * `Per Day` - Per Day
+        * `Per Hour` - Per Hour
+        * `Piece Rate` - Piece Rate
+        * `Fixed Monthly` - Fixed Monthly
+    BlankEnum:
+      enum:
+      - ''
+    Contract:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        contractor_name:
+          type: string
+          description: Agency or Contractor business name
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        contract_number:
+          type: string
+          maxLength: 100
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        billing_basis:
+          $ref: '#/components/schemas/BillingBasisEnum'
+        agreed_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Agreed rate per unit basis
+        overtime_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Hourly OT rate if applicable
+        terms:
+          type: string
+        document_ref:
+          type: string
+          maxLength: 255
+        status:
+          $ref: '#/components/schemas/ContractStatusEnum'
+        contractor:
+          type: integer
+      required:
+      - contract_number
+      - contractor
+      - contractor_name
+      - created_at
+      - end_date
+      - id
+      - start_date
+      - updated_at
+    ContractStatusEnum:
+      enum:
+      - Active
+      - Expired
+      - Terminated
+      type: string
+      description: |-
+        * `Active` - Active
+        * `Expired` - Expired
+        * `Terminated` - Terminated
+    Contractor:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        total_assigned_workers:
+          type: string
+          readOnly: true
+        active_contracts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contract'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        contractor_id:
+          type: string
+          description: Unique identifier for contractor (e.g. CON-001)
+          maxLength: 50
+        name:
+          type: string
+          description: Agency or Contractor business name
+          maxLength: 200
+        contact_person:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 30
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        address:
+          type: string
+        pan_number:
+          type: string
+          maxLength: 20
+        gst_number:
+          type: string
+          maxLength: 30
+        is_active:
+          type: boolean
+      required:
+      - active_contracts
+      - contractor_id
+      - created_at
+      - id
+      - name
+      - total_assigned_workers
+      - updated_at
+    ContractorBill:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        contractor_name:
+          type: string
+          description: Agency or Contractor business name
+          readOnly: true
+        contractor_code:
+          type: string
+          description: Unique identifier for contractor (e.g. CON-001)
+          readOnly: true
+        outstanding_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        invoice_number:
+          type: string
+          maxLength: 100
+        invoice_date:
+          type: string
+          format: date
+        billing_period_start:
+          type: string
+          format: date
+        billing_period_end:
+          type: string
+          format: date
+        total_man_days:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        agreed_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        billable_overtime_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        overtime_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        base_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        overtime_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        tax_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: GST / statutory taxes
+        deductions:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: TDS / penalties
+        approved_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        payment_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        payment_date:
+          type: string
+          format: date
+          nullable: true
+        payment_reference:
+          type: string
+          maxLength: 100
+        status:
+          $ref: '#/components/schemas/ContractorBillStatusEnum'
+        remarks:
+          type: string
+        contractor:
+          type: integer
+        verified_by:
+          type: integer
+          nullable: true
+      required:
+      - billing_period_end
+      - billing_period_start
+      - contractor
+      - contractor_code
+      - contractor_name
+      - created_at
+      - id
+      - invoice_date
+      - invoice_number
+      - outstanding_balance
+      - updated_at
+    ContractorBillStatusEnum:
+      enum:
+      - Draft
+      - Under Review
+      - Approved
+      - Paid
+      - Rejected
+      type: string
+      description: |-
+        * `Draft` - Draft
+        * `Under Review` - Under Review
+        * `Approved` - Approved
+        * `Paid` - Paid
+        * `Rejected` - Rejected
+    ContractorWorkerAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        worker_name:
+          type: string
+          description: Full name of the worker
+          readOnly: true
+        worker_code:
+          type: string
+          description: Unique identifier code for the worker (e.g. W001, EMP-101)
+          readOnly: true
+        contractor_name:
+          type: string
+          description: Agency or Contractor business name
+          readOnly: true
+        department_name:
+          type: string
+          description: Unique name of the department (e.g. Production, Maintenance)
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        is_active:
+          type: boolean
+        notes:
+          type: string
+        contractor:
+          type: integer
+        worker:
+          type: integer
+        department:
+          type: integer
+          nullable: true
+      required:
+      - contractor
+      - contractor_name
+      - created_at
+      - department_name
+      - id
+      - start_date
+      - updated_at
+      - worker
+      - worker_code
+      - worker_name
+    Department:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Unique name of the department (e.g. Production, Maintenance)
+          maxLength: 100
+        description:
+          type: string
+          description: Description of functions handled by this department
+        is_active:
+          type: boolean
+          default: true
+        status:
+          type: string
+          readOnly: true
+        head:
+          type: string
+          description: Name and title of the department in-charge
+          maxLength: 150
+        location:
+          type: string
+          description: Floor, bay, or physical unit location
+          maxLength: 200
+        total_workers:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - status
+      - total_workers
+      - updated_at
+    PaginatedAdvanceList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Advance'
+    PaginatedAttendanceImportBatchList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttendanceImportBatch'
+    PaginatedAttendanceRecordList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttendanceRecord'
+    PaginatedAuditLogList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+    PaginatedContractList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contract'
+    PaginatedContractorBillList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractorBill'
+    PaginatedContractorList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contractor'
+    PaginatedContractorWorkerAssignmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractorWorkerAssignment'
+    PaginatedDepartmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Department'
+    PaginatedPayrollLineList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayrollLine'
+    PaginatedPayrollPeriodList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayrollPeriod'
+    PaginatedShiftList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shift'
+    PaginatedUserList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    PaginatedWorkerList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Worker'
+    PatchedAdvance:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        advance_id:
+          type: string
+          description: Unique advance tracking ID (e.g. ADV-001 or FA-001)
+          maxLength: 50
+        worker:
+          type: integer
+        worker_id_code:
+          type: string
+          description: Unique identifier code for the worker (e.g. W001, EMP-101)
+          readOnly: true
+        worker_name:
+          type: string
+          description: Full name of the worker
+          readOnly: true
+        department_name:
+          type: string
+          description: Unique name of the department (e.g. Production, Maintenance)
+          readOnly: true
+        advance_type:
+          $ref: '#/components/schemas/AdvanceTypeEnum'
+        principal_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Original sanctioned advance amount
+        monthly_deduction:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Agreed deduction per payroll run
+        issue_date:
+          type: string
+          format: date
+        repayment_start_date:
+          type: string
+          format: date
+          nullable: true
+        reason:
+          type: string
+        status:
+          $ref: '#/components/schemas/AdvanceStatusEnum'
+        outstanding_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        approved_by:
+          type: integer
+          nullable: true
+        approved_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdvanceTransaction'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedAttendanceRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        worker:
+          type: integer
+        worker_id_code:
+          type: string
+          description: Unique identifier code for the worker (e.g. W001, EMP-101)
+          readOnly: true
+        worker_name:
+          type: string
+          description: Full name of the worker
+          readOnly: true
+        department_name:
+          type: string
+          description: Unique name of the department (e.g. Production, Maintenance)
+          readOnly: true
+        attendance_date:
+          type: string
+          format: date
+        shift:
+          type: integer
+          nullable: true
+        shift_name:
+          type: string
+          description: e.g. Day Shift (8:00 AM - 5:00 PM)
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/AttendanceRecordStatusEnum'
+        time_in:
+          type: string
+          description: e.g. 08:00 AM or 08:00
+          maxLength: 20
+        time_out:
+          type: string
+          description: e.g. 05:00 PM or 17:00
+          maxLength: 20
+        break_minutes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        working_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          description: Net working hours
+        overtime_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          description: Approved eligible overtime hours
+        approval_status:
+          $ref: '#/components/schemas/ApprovalStatusEnum'
+        remarks:
+          type: string
+        correction_reason:
+          type: string
+        source:
+          $ref: '#/components/schemas/SourceEnum'
+        approved_by:
+          type: integer
+          nullable: true
+        approved_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedContract:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        contractor_name:
+          type: string
+          description: Agency or Contractor business name
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        contract_number:
+          type: string
+          maxLength: 100
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        billing_basis:
+          $ref: '#/components/schemas/BillingBasisEnum'
+        agreed_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Agreed rate per unit basis
+        overtime_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Hourly OT rate if applicable
+        terms:
+          type: string
+        document_ref:
+          type: string
+          maxLength: 255
+        status:
+          $ref: '#/components/schemas/ContractStatusEnum'
+        contractor:
+          type: integer
+    PatchedContractor:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        total_assigned_workers:
+          type: string
+          readOnly: true
+        active_contracts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contract'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        contractor_id:
+          type: string
+          description: Unique identifier for contractor (e.g. CON-001)
+          maxLength: 50
+        name:
+          type: string
+          description: Agency or Contractor business name
+          maxLength: 200
+        contact_person:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 30
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        address:
+          type: string
+        pan_number:
+          type: string
+          maxLength: 20
+        gst_number:
+          type: string
+          maxLength: 30
+        is_active:
+          type: boolean
+    PatchedContractorBill:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        contractor_name:
+          type: string
+          description: Agency or Contractor business name
+          readOnly: true
+        contractor_code:
+          type: string
+          description: Unique identifier for contractor (e.g. CON-001)
+          readOnly: true
+        outstanding_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        invoice_number:
+          type: string
+          maxLength: 100
+        invoice_date:
+          type: string
+          format: date
+        billing_period_start:
+          type: string
+          format: date
+        billing_period_end:
+          type: string
+          format: date
+        total_man_days:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        agreed_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        billable_overtime_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        overtime_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        base_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        overtime_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        tax_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: GST / statutory taxes
+        deductions:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: TDS / penalties
+        approved_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        payment_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        payment_date:
+          type: string
+          format: date
+          nullable: true
+        payment_reference:
+          type: string
+          maxLength: 100
+        status:
+          $ref: '#/components/schemas/ContractorBillStatusEnum'
+        remarks:
+          type: string
+        contractor:
+          type: integer
+        verified_by:
+          type: integer
+          nullable: true
+    PatchedDepartment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Unique name of the department (e.g. Production, Maintenance)
+          maxLength: 100
+        description:
+          type: string
+          description: Description of functions handled by this department
+        is_active:
+          type: boolean
+          default: true
+        status:
+          type: string
+          readOnly: true
+        head:
+          type: string
+          description: Name and title of the department in-charge
+          maxLength: 150
+        location:
+          type: string
+          description: Floor, bay, or physical unit location
+          maxLength: 200
+        total_workers:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedPayrollPeriod:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        approved_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        outstanding_salary:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        lines_count:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        name:
+          type: string
+          description: e.g. October 2026
+          maxLength: 100
+        month:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          description: 1-12
+        year:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          description: e.g. 2026
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/PayrollPeriodStatusEnum'
+        run_number:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          default: 1
+        total_gross:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        total_deductions:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        total_net_payable:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        total_paid:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_by:
+          type: integer
+          nullable: true
+        approved_by:
+          type: integer
+          nullable: true
+    PatchedShift:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        name:
+          type: string
+          description: e.g. Day Shift (8:00 AM - 5:00 PM)
+          maxLength: 100
+        code:
+          type: string
+          description: e.g. SHIFT-A, SHIFT-B
+          maxLength: 20
+        start_time:
+          type: string
+          format: time
+          description: Shift scheduled start time
+        end_time:
+          type: string
+          format: time
+          description: Shift scheduled end time
+        break_duration_minutes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          description: Unpaid break in minutes (default 60m)
+        standard_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+          description: Scheduled hours (usually 8.00)
+        is_night_shift:
+          type: boolean
+          description: Crosses midnight boundary
+        is_active:
+          type: boolean
+    PatchedWorker:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        worker_id:
+          type: string
+          description: Unique identifier code for the worker (e.g. W001, EMP-101)
+          maxLength: 50
+        name:
+          type: string
+          description: Full name of the worker
+          maxLength: 150
+        department:
+          type: integer
+          writeOnly: true
+          nullable: true
+          description: Department where the worker is assigned
+        department_id:
+          type: integer
+          nullable: true
+        department_name:
+          type: string
+          readOnly: true
+        designation:
+          type: string
+          description: Role/Designation (e.g. CNC Operator, Supervisor)
+          maxLength: 100
+        phone:
+          type: string
+          description: Contact phone number
+          maxLength: 25
+        email:
+          description: Email address
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        joining_date:
+          type: string
+          format: date
+          nullable: true
+          description: Date the worker joined the organization
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusDcfEnum'
+          description: |-
+            Current employment status
+
+            * `Active` - Active
+            * `Inactive` - Inactive
+            * `On Leave` - On Leave
+            * `Terminated` - Terminated
+        worker_type:
+          description: |-
+            Permanent or Contractor
+
+            * `Permanent` - Permanent
+            * `Contractor` - Contractor
+          oneOf:
+          - $ref: '#/components/schemas/WorkerTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        wage_basis:
+          allOf:
+          - $ref: '#/components/schemas/WageBasisEnum'
+          description: |-
+            Wage calculation basis: Monthly, Daily, or Hourly
+
+            * `Monthly` - Monthly
+            * `Daily` - Daily
+            * `Hourly` - Hourly
+        base_wage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Base wage or monthly rate in INR
+        overtime_eligible:
+          type: boolean
+          description: Whether this worker is eligible for overtime pay
+        gender:
+          type: string
+          maxLength: 20
+        dob:
+          type: string
+          format: date
+          nullable: true
+          description: Date of birth
+        address:
+          type: string
+        photo:
+          type: string
+        contractor_agency:
+          type: string
+          maxLength: 150
+        bank_account:
+          type: string
+          maxLength: 50
+        ifsc_code:
+          type: string
+          maxLength: 20
+        aadhar_number:
+          type: string
+          maxLength: 30
+        pan_number:
+          type: string
+          maxLength: 20
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PaymentStatusEnum:
+      enum:
+      - Unpaid
+      - Partially Paid
+      - Paid
+      type: string
+      description: |-
+        * `Unpaid` - Unpaid
+        * `Partially Paid` - Partially Paid
+        * `Paid` - Paid
+    PayrollLine:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        worker_name:
+          type: string
+          description: Full name of the worker
+          readOnly: true
+        worker_id_code:
+          type: string
+          description: Unique identifier code for the worker (e.g. W001, EMP-101)
+          readOnly: true
+        department_name:
+          type: string
+          description: Unique name of the department (e.g. Production, Maintenance)
+          readOnly: true
+        payments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalaryPayment'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        wage_basis:
+          type: string
+          maxLength: 20
+        base_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        present_days:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        absent_days:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        half_days:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        leave_days:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        payable_days:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        approved_overtime_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        basic_salary:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        da:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Dearness Allowance
+        hra:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: House Rent Allowance
+        allowances:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Other Allowances
+        overtime_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        gross_earnings:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        pf_deduction:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Provident Fund
+        esi_deduction:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: ESI
+        pt_deduction:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Professional Tax
+        other_deductions:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        advance_deduction:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Advance Recovery
+        total_deductions:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        net_payable:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        paid_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        outstanding_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        payment_status:
+          $ref: '#/components/schemas/PaymentStatusEnum'
+        payment_date:
+          type: string
+          format: date
+          nullable: true
+        payment_method:
+          type: string
+          maxLength: 50
+        reference_no:
+          type: string
+          maxLength: 100
+        payslip_number:
+          type: string
+          maxLength: 100
+        calculation_snapshot: {}
+        payroll_period:
+          type: integer
+        worker:
+          type: integer
+      required:
+      - created_at
+      - department_name
+      - id
+      - payments
+      - payroll_period
+      - updated_at
+      - worker
+      - worker_id_code
+      - worker_name
+    PayrollPeriod:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        approved_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        outstanding_salary:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        lines_count:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        name:
+          type: string
+          description: e.g. October 2026
+          maxLength: 100
+        month:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          description: 1-12
+        year:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          description: e.g. 2026
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/PayrollPeriodStatusEnum'
+        run_number:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          default: 1
+        total_gross:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        total_deductions:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        total_net_payable:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        total_paid:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_by:
+          type: integer
+          nullable: true
+        approved_by:
+          type: integer
+          nullable: true
+      required:
+      - approved_by_name
+      - created_at
+      - created_by_name
+      - end_date
+      - id
+      - lines_count
+      - month
+      - name
+      - outstanding_salary
+      - start_date
+      - updated_at
+      - year
+    PayrollPeriodStatusEnum:
+      enum:
+      - Draft
+      - Calculated
+      - Under Review
+      - Approved
+      - Locked
+      - Partially Paid
+      - Paid
+      - Reversed
+      type: string
+      description: |-
+        * `Draft` - Draft
+        * `Calculated` - Calculated
+        * `Under Review` - Under Review
+        * `Approved` - Approved
+        * `Locked` - Locked
+        * `Partially Paid` - Partially Paid
+        * `Paid` - Paid
+        * `Reversed` - Reversed
+    SalaryPayment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        recorded_by_name:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        amount_paid:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        payment_date:
+          type: string
+          format: date
+        payment_method:
+          type: string
+          maxLength: 50
+        reference_number:
+          type: string
+          maxLength: 100
+        status:
+          type: string
+          maxLength: 20
+        notes:
+          type: string
+        payroll_line:
+          type: integer
+        worker:
+          type: integer
+        recorded_by:
+          type: integer
+          nullable: true
+      required:
+      - amount_paid
+      - created_at
+      - id
+      - payment_date
+      - payroll_line
+      - recorded_by_name
+      - updated_at
+      - worker
+    Shift:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        name:
+          type: string
+          description: e.g. Day Shift (8:00 AM - 5:00 PM)
+          maxLength: 100
+        code:
+          type: string
+          description: e.g. SHIFT-A, SHIFT-B
+          maxLength: 20
+        start_time:
+          type: string
+          format: time
+          description: Shift scheduled start time
+        end_time:
+          type: string
+          format: time
+          description: Shift scheduled end time
+        break_duration_minutes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          description: Unpaid break in minutes (default 60m)
+        standard_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+          description: Scheduled hours (usually 8.00)
+        is_night_shift:
+          type: boolean
+          description: Crosses midnight boundary
+        is_active:
+          type: boolean
+      required:
+      - code
+      - created_at
+      - end_time
+      - id
+      - name
+      - start_time
+      - updated_at
+    SourceEnum:
+      enum:
+      - manual
+      - imported
+      type: string
+      description: |-
+        * `manual` - Manual Entry
+        * `imported` - Imported File
+    StatusDcfEnum:
+      enum:
+      - Active
+      - Inactive
+      - On Leave
+      - Terminated
+      type: string
+      description: |-
+        * `Active` - Active
+        * `Inactive` - Inactive
+        * `On Leave` - On Leave
+        * `Terminated` - Terminated
+    TransactionTypeEnum:
+      enum:
+      - Disbursement
+      - Payroll Deduction
+      - Manual Repayment
+      - Adjustment
+      type: string
+      description: |-
+        * `Disbursement` - Disbursement
+        * `Payroll Deduction` - Payroll Deduction
+        * `Manual Repayment` - Manual Repayment
+        * `Adjustment` - Adjustment
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          title: Email address
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        is_staff:
+          type: boolean
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+        is_superuser:
+          type: boolean
+          title: Superuser status
+          description: Designates that this user has all permissions without explicitly
+            assigning them.
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        date_joined:
+          type: string
+          format: date-time
+      required:
+      - id
+      - username
+    WageBasisEnum:
+      enum:
+      - Monthly
+      - Daily
+      - Hourly
+      type: string
+      description: |-
+        * `Monthly` - Monthly
+        * `Daily` - Daily
+        * `Hourly` - Hourly
+    Worker:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        worker_id:
+          type: string
+          description: Unique identifier code for the worker (e.g. W001, EMP-101)
+          maxLength: 50
+        name:
+          type: string
+          description: Full name of the worker
+          maxLength: 150
+        department:
+          type: integer
+          writeOnly: true
+          nullable: true
+          description: Department where the worker is assigned
+        department_id:
+          type: integer
+          nullable: true
+        department_name:
+          type: string
+          readOnly: true
+        designation:
+          type: string
+          description: Role/Designation (e.g. CNC Operator, Supervisor)
+          maxLength: 100
+        phone:
+          type: string
+          description: Contact phone number
+          maxLength: 25
+        email:
+          description: Email address
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        joining_date:
+          type: string
+          format: date
+          nullable: true
+          description: Date the worker joined the organization
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusDcfEnum'
+          description: |-
+            Current employment status
+
+            * `Active` - Active
+            * `Inactive` - Inactive
+            * `On Leave` - On Leave
+            * `Terminated` - Terminated
+        worker_type:
+          description: |-
+            Permanent or Contractor
+
+            * `Permanent` - Permanent
+            * `Contractor` - Contractor
+          oneOf:
+          - $ref: '#/components/schemas/WorkerTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        wage_basis:
+          allOf:
+          - $ref: '#/components/schemas/WageBasisEnum'
+          description: |-
+            Wage calculation basis: Monthly, Daily, or Hourly
+
+            * `Monthly` - Monthly
+            * `Daily` - Daily
+            * `Hourly` - Hourly
+        base_wage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Base wage or monthly rate in INR
+        overtime_eligible:
+          type: boolean
+          description: Whether this worker is eligible for overtime pay
+        gender:
+          type: string
+          maxLength: 20
+        dob:
+          type: string
+          format: date
+          nullable: true
+          description: Date of birth
+        address:
+          type: string
+        photo:
+          type: string
+        contractor_agency:
+          type: string
+          maxLength: 150
+        bank_account:
+          type: string
+          maxLength: 50
+        ifsc_code:
+          type: string
+          maxLength: 20
+        aadhar_number:
+          type: string
+          maxLength: 30
+        pan_number:
+          type: string
+          maxLength: 20
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - department_name
+      - id
+      - name
+      - updated_at
+      - worker_id
+    WorkerDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        worker_id:
+          type: string
+          description: Unique identifier code for the worker (e.g. W001, EMP-101)
+          maxLength: 50
+        name:
+          type: string
+          description: Full name of the worker
+          maxLength: 150
+        department:
+          type: integer
+          writeOnly: true
+          nullable: true
+          description: Department where the worker is assigned
+        department_id:
+          type: integer
+          nullable: true
+        department_name:
+          type: string
+          readOnly: true
+        designation:
+          type: string
+          description: Role/Designation (e.g. CNC Operator, Supervisor)
+          maxLength: 100
+        phone:
+          type: string
+          description: Contact phone number
+          maxLength: 25
+        email:
+          description: Email address
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        joining_date:
+          type: string
+          format: date
+          nullable: true
+          description: Date the worker joined the organization
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusDcfEnum'
+          description: |-
+            Current employment status
+
+            * `Active` - Active
+            * `Inactive` - Inactive
+            * `On Leave` - On Leave
+            * `Terminated` - Terminated
+        worker_type:
+          description: |-
+            Permanent or Contractor
+
+            * `Permanent` - Permanent
+            * `Contractor` - Contractor
+          oneOf:
+          - $ref: '#/components/schemas/WorkerTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        wage_basis:
+          allOf:
+          - $ref: '#/components/schemas/WageBasisEnum'
+          description: |-
+            Wage calculation basis: Monthly, Daily, or Hourly
+
+            * `Monthly` - Monthly
+            * `Daily` - Daily
+            * `Hourly` - Hourly
+        base_wage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Base wage or monthly rate in INR
+        overtime_eligible:
+          type: boolean
+          description: Whether this worker is eligible for overtime pay
+        gender:
+          type: string
+          maxLength: 20
+        dob:
+          type: string
+          format: date
+          nullable: true
+          description: Date of birth
+        address:
+          type: string
+        photo:
+          type: string
+        contractor_agency:
+          type: string
+          maxLength: 150
+        bank_account:
+          type: string
+          maxLength: 50
+        ifsc_code:
+          type: string
+          maxLength: 20
+        aadhar_number:
+          type: string
+          maxLength: 30
+        pan_number:
+          type: string
+          maxLength: 20
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        department_detail:
+          allOf:
+          - $ref: '#/components/schemas/Department'
+          readOnly: true
+      required:
+      - created_at
+      - department_detail
+      - department_name
+      - id
+      - name
+      - updated_at
+      - worker_id
+    WorkerTypeEnum:
+      enum:
+      - Permanent
+      - Contractor
+      type: string
+      description: |-
+        * `Permanent` - Permanent
+        * `Contractor` - Contractor
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    tokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Token-based authentication with required prefix "Token"
