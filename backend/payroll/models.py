@@ -190,3 +190,141 @@ class SalaryPayment(TimeStampedModel):
 
     def __str__(self):
         return f"Payment ₹{self.amount_paid} to {self.worker.name} on {self.payment_date}"
+
+
+class BankAccount(TimeStampedModel):
+    """
+    Company Disbursal and Operational Bank/Cash Accounts.
+    Tracks live ledger balances for payroll and worker payments.
+    """
+    ACCOUNT_TYPE_BANK = 'Bank'
+    ACCOUNT_TYPE_CASH = 'Cash'
+    ACCOUNT_TYPE_CHOICES = [
+        (ACCOUNT_TYPE_BANK, 'Bank Account'),
+        (ACCOUNT_TYPE_CASH, 'Cash in Hand'),
+    ]
+
+    account_name = models.CharField(max_length=150, help_text='Display name e.g. HDFC Disbursal A/C')
+    account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPE_CHOICES, default=ACCOUNT_TYPE_BANK)
+    bank_name = models.CharField(max_length=100, blank=True, default='')
+    account_number = models.CharField(max_length=50, blank=True, default='')
+    ifsc_code = models.CharField(max_length=20, blank=True, default='')
+    opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    current_balance = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-is_default', 'account_name']
+        verbose_name = 'Bank Account'
+        verbose_name_plural = 'Bank Accounts'
+
+    def __str__(self):
+        return f"{self.account_name} ({self.account_type}) - ₹{self.current_balance:,.2f}"
+
+
+class PaymentVoucher(TimeStampedModel):
+    """
+    Official Payment Voucher for Worker Settlement & Wage Disbursements.
+    Provides complete financial auditability with double-entry journal linkage.
+    """
+    STATUS_COMPLETED = 'Completed'
+    STATUS_CANCELLED = 'Cancelled'
+    STATUS_CHOICES = [
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    MODE_BANK_TRANSFER = 'Bank Transfer'
+    MODE_UPI = 'UPI'
+    MODE_CASH = 'Cash'
+    MODE_CHEQUE = 'Cheque'
+    MODE_CHOICES = [
+        (MODE_BANK_TRANSFER, 'Bank Transfer'),
+        (MODE_UPI, 'UPI'),
+        (MODE_CASH, 'Cash'),
+        (MODE_CHEQUE, 'Cheque'),
+    ]
+
+    voucher_number = models.CharField(max_length=50, unique=True, db_index=True)
+    payment_date = models.DateField(db_index=True)
+    worker = models.ForeignKey('workers.Worker', on_delete=models.CASCADE, related_name='payment_vouchers')
+    payroll_line = models.ForeignKey(PayrollLine, on_delete=models.SET_NULL, null=True, blank=True, related_name='vouchers')
+    settlement_period = models.CharField(max_length=100, default='Current Settlement', help_text='Settlement period e.g. October 2026')
+
+    total_payable = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    previously_paid = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2)
+    outstanding_after = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+
+    payment_mode = models.CharField(max_length=30, choices=MODE_CHOICES, default=MODE_BANK_TRANSFER)
+    bank_account = models.ForeignKey(BankAccount, on_delete=models.PROTECT, related_name='vouchers')
+
+    transaction_reference = models.CharField(max_length=100, blank=True, default='', help_text='Bank UTR / UPI Ref / Cash Voucher No')
+    cheque_number = models.CharField(max_length=50, blank=True, default='')
+    cheque_date = models.DateField(null=True, blank=True)
+    drawn_on = models.CharField(max_length=100, blank=True, default='')
+
+    narration = models.TextField(blank=True, default='')
+    payment_proof = models.TextField(blank=True, default='', help_text='Receipt or document upload in base64')
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_COMPLETED, db_index=True)
+    cancellation_reason = models.TextField(blank=True, default='')
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='cancelled_vouchers')
+
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_payment_vouchers')
+
+    class Meta:
+        ordering = ['-payment_date', '-created_at']
+        verbose_name = 'Payment Voucher'
+        verbose_name_plural = 'Payment Vouchers'
+
+    def __str__(self):
+        return f"{self.voucher_number} - {self.worker.name} - ₹{self.amount_paid:,.2f} ({self.status})"
+
+
+class JournalEntry(TimeStampedModel):
+    """
+    Double-entry accounting journal transaction generated upon payment posting.
+    Ensures Debit Worker Payable = Credit Bank/Cash.
+    """
+    voucher = models.OneToOneField(PaymentVoucher, on_delete=models.CASCADE, related_name='journal_entry', null=True, blank=True)
+    entry_number = models.CharField(max_length=50, unique=True, db_index=True)
+    entry_date = models.DateField(db_index=True)
+    reference = models.CharField(max_length=100, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    is_reversed = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-entry_date', '-created_at']
+        verbose_name = 'Journal Entry'
+        verbose_name_plural = 'Journal Entries'
+
+    def __str__(self):
+        return f"{self.entry_number} ({self.entry_date}): {self.description}"
+
+
+class JournalEntryLine(TimeStampedModel):
+    """
+    Debits and Credits for a journal transaction.
+    """
+    TYPE_DEBIT = 'Debit'
+    TYPE_CREDIT = 'Credit'
+    TYPE_CHOICES = [
+        (TYPE_DEBIT, 'Debit'),
+        (TYPE_CREDIT, 'Credit'),
+    ]
+
+    journal_entry = models.ForeignKey(JournalEntry, on_delete=models.CASCADE, related_name='lines')
+    account_name = models.CharField(max_length=150)
+    entry_type = models.CharField(max_length=10, choices=TYPE_CHOICES)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+
+    class Meta:
+        ordering = ['-entry_type', 'account_name']
+        verbose_name = 'Journal Entry Line'
+        verbose_name_plural = 'Journal Entry Lines'
+
+    def __str__(self):
+        return f"{self.journal_entry.entry_number}: {self.account_name} {self.entry_type} ₹{self.amount}"

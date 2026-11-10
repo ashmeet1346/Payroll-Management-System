@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { WorkerService } from '../services/api';
 import {
   Briefcase,
   Calendar,
@@ -197,18 +198,46 @@ const generateFixedWorkerLogs = (workerIndex, monthlySalary, allowedLeaves = 2, 
 const INITIAL_FIXED_WORKERS = [];
 
 export default function FixedSalaryWorkersPage({ onBackToSalaryModules }) {
-  const [workers, setWorkers] = useState(() => {
-    return INITIAL_FIXED_WORKERS.map(w => ({
-      ...w,
-      dailyLogs: generateFixedWorkerLogs(0, w.monthlySalary, w.allowedLeaves, w.config)
-    }));
-  });
-
+  const [workers, setWorkers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState('All');
   const [selectedWorkerForDetails, setSelectedWorkerForDetails] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    WorkerService.getAll()
+      .then((allWorkers) => {
+        if (!isMounted) return;
+        if (Array.isArray(allWorkers)) {
+          const relevant = allWorkers.filter(
+            (w) => w.salaryPolicy === 'FIXED_ABSENT' || w.salaryPolicy === 'FIXED_ABSENT_OT' || (w.workerType === 'Permanent' && w.salaryPolicy !== 'TIME_BASED' && w.salaryPolicy !== 'PIECE_RATE')
+          );
+          const mapped = relevant.map((w, idx) => ({
+            id: w.workerId || `FX0${idx + 1}`,
+            name: w.name,
+            department: w.department || 'Production',
+            designation: w.designation || 'Staff',
+            photo: w.photo || SAMPLE_AVATARS[0],
+            monthlySalary: parseFloat(w.policyRate || w.baseWage || 25000),
+            allowedLeaves: 2,
+            config: {
+              compensateSunday: w.salaryPolicy === 'FIXED_ABSENT_OT',
+              compensateHoliday: w.salaryPolicy === 'FIXED_ABSENT_OT',
+            },
+            dailyLogs: generateFixedWorkerLogs(idx, parseFloat(w.policyRate || w.baseWage || 25000), 2, { compensateSunday: true, compensateHoliday: true }),
+          }));
+          setWorkers(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load fixed salary workers:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -597,8 +626,15 @@ export default function FixedSalaryWorkersPage({ onBackToSalaryModules }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredWorkers.map((worker) => {
-                  const summary = calculateWorkerSummary(worker);
+                {filteredWorkers.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center text-xs text-slate-400">
+                      No fixed salary workers registered yet. Register workers under the "Fully Fixed Salary" or "Fixed with Overtime" policy in Workers module.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredWorkers.map((worker) => {
+                    const summary = calculateWorkerSummary(worker);
 
                   return (
                     <tr
@@ -737,7 +773,7 @@ export default function FixedSalaryWorkersPage({ onBackToSalaryModules }) {
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>

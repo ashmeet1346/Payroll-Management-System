@@ -1,8 +1,9 @@
 from decimal import Decimal
 from rest_framework import serializers
-from .models import Shift, AttendanceRecord, AttendanceImportBatch
+from .models import Shift, AttendanceRecord, AttendanceImportBatch, AttendancePunch
 from workers.models import Worker
 from payroll.calculations import calculate_working_and_overtime
+from core.validators import validate_date_not_future, validate_working_hours_range, validate_attendance_status_choice
 
 
 class ShiftSerializer(serializers.ModelSerializer):
@@ -47,7 +48,32 @@ class AttendanceRecordSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'approved_by_name']
 
+    def validate_attendance_date(self, value):
+        if value:
+            return validate_date_not_future(value, field_name='Attendance date')
+        return value
+
+    def validate_status(self, value):
+        return validate_attendance_status_choice(value)
+
+    def validate_working_hours(self, value):
+        if value is not None:
+            return validate_working_hours_range(value)
+        return value
+
     def validate(self, attrs):
+        worker = attrs.get('worker', self.instance.worker if self.instance else None)
+        att_date = attrs.get('attendance_date', self.instance.attendance_date if self.instance else None)
+
+        if worker and att_date:
+            qs = AttendanceRecord.objects.filter(worker=worker, attendance_date=att_date)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    f"Attendance record for worker '{worker.name}' on {att_date} already exists."
+                )
+
         time_in = attrs.get('time_in', self.instance.time_in if self.instance else '')
         time_out = attrs.get('time_out', self.instance.time_out if self.instance else '')
         break_mins = attrs.get('break_minutes', self.instance.break_minutes if self.instance else 60)
@@ -71,3 +97,28 @@ class AttendanceImportBatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttendanceImportBatch
         fields = '__all__'
+
+
+class AttendancePunchSerializer(serializers.ModelSerializer):
+    worker_name = serializers.ReadOnlyField(source='worker.name')
+    worker_id_code = serializers.ReadOnlyField(source='worker.worker_id')
+
+    class Meta:
+        model = AttendancePunch
+        fields = [
+            'id',
+            'worker',
+            'worker_id_code',
+            'worker_name',
+            'punch_time',
+            'punch_type',
+            'device_id',
+            'location',
+            'raw_data',
+            'is_processed',
+            'processed_record',
+            'notes',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

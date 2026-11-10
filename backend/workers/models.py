@@ -146,6 +146,39 @@ class Worker(TimeStampedModel):
         blank=True,
         default=''
     )
+    SALARY_POLICY_CHOICES = [
+        ('FIXED_ABSENT', 'Fully fixed salary with absent affecting their salary'),
+        ('FIXED_ABSENT_OT', 'Fixed with absent and overtime (Sunday and Holiday)'),
+        ('TIME_BASED', 'Basic time based salary'),
+        ('PIECE_RATE', 'Pcs rate salary'),
+        ('PER_TONNAGE', 'Rs per tonnage'),
+        ('PER_KG', 'Rs per kg'),
+        ('PER_HOUR', 'Rs per hour'),
+    ]
+
+    salary_policy = models.CharField(
+        max_length=100,
+        choices=SALARY_POLICY_CHOICES,
+        default='FIXED_ABSENT',
+        help_text='Configured salary policy for employee or contractor worker'
+    )
+    policy_rate = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Rate applied to policy (e.g. rate per ton, rate per kg, rate per pc, hourly rate)'
+    )
+    emergency_contact = models.CharField(
+        max_length=30,
+        blank=True,
+        default='',
+        help_text='Emergency contact phone number'
+    )
+    permanent_address = models.TextField(
+        blank=True,
+        default='',
+        help_text='Permanent residential address'
+    )
     aadhar_number = models.CharField(
         max_length=30,
         blank=True,
@@ -156,8 +189,19 @@ class Worker(TimeStampedModel):
         blank=True,
         default=''
     )
+    aadhar_doc = models.TextField(
+        blank=True,
+        default='',
+        help_text='Uploaded Aadhaar card document scan or data'
+    )
+    pan_doc = models.TextField(
+        blank=True,
+        default='',
+        help_text='Uploaded PAN card document scan or data'
+    )
 
     class Meta:
+
         ordering = ['worker_id']
         verbose_name = 'Worker'
         verbose_name_plural = 'Workers'

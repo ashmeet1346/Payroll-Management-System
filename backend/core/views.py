@@ -228,9 +228,48 @@ class DashboardStatsView(APIView):
             total_paid = 0.0
             outstanding_salary = 0.0
 
-        # 4. Total Outstanding Advances
+        # Cumulative salary generated till date across all payroll periods
+        all_payrolls = PayrollPeriod.objects.exclude(status=PayrollPeriod.STATUS_REVERSED)
+        total_salary_till_date = float(sum(p.total_gross for p in all_payrolls))
+        if total_salary_till_date == 0.0 and total_salary > 0.0:
+            total_salary_till_date = total_salary
+
+        # 4. Total Outstanding Advances (Reconciled from both Advance ORM and persistent DataStore)
+        import json
+        from core.models import DataStore
+
         active_advances = Advance.objects.filter(status='Approved', outstanding_balance__gt=0)
         total_advances_outstanding = float(sum(adv.outstanding_balance for adv in active_advances))
+        this_month_advances = float(sum(adv.principal_amount for adv in Advance.objects.filter(issue_date__month=today.month, issue_date__year=today.year)))
+        fixed_advance_balance = float(sum(adv.outstanding_balance for adv in active_advances.filter(advance_type=Advance.TYPE_FIXED_ADVANCE)))
+
+        # Sync from DataStore 'advances_regular'
+        try:
+            ds_reg = DataStore.objects.filter(key='advances_regular').first()
+            if ds_reg and ds_reg.data:
+                reg_data = ds_reg.data if isinstance(ds_reg.data, list) else json.loads(ds_reg.data) if isinstance(ds_reg.data, str) else []
+                for w in reg_data:
+                    for tx in w.get('transactions', []):
+                        amt = float(tx.get('amount') or 0)
+                        this_month_advances += amt
+                        if tx.get('status') != 'Deducted in Salary':
+                            total_advances_outstanding += amt
+        except Exception:
+            pass
+
+        # Sync from DataStore 'advances_fixed'
+        try:
+            ds_fix = DataStore.objects.filter(key='advances_fixed').first()
+            if ds_fix and ds_fix.data:
+                fix_data = ds_fix.data if isinstance(ds_fix.data, list) else json.loads(ds_fix.data) if isinstance(ds_fix.data, str) else []
+                for l in fix_data:
+                    p_amt = float(l.get('principalAmount') or 0)
+                    rec = sum(float(r.get('emiAmount') or 0) for r in l.get('repayments', []))
+                    rem = max(0.0, p_amt - rec)
+                    fixed_advance_balance += rem
+                    total_advances_outstanding += rem
+        except Exception:
+            pass
 
         return Response({
             'total_workers': total_workers,
@@ -241,9 +280,14 @@ class DashboardStatsView(APIView):
             'leave_today': leave_today,
             'payroll_month': payroll_month,
             'total_salary': total_salary,
+            'total_salary_till_date': total_salary_till_date,
+            'total_salary_generated': total_salary_till_date,
             'total_deductions': total_deductions,
             'net_salary': net_salary,
             'total_paid': total_paid,
             'outstanding_salary': outstanding_salary,
             'total_advances_outstanding': total_advances_outstanding,
+            'this_month_advances': this_month_advances,
+            'fixed_advance_balance': fixed_advance_balance,
         }, status=status.HTTP_200_OK)
+

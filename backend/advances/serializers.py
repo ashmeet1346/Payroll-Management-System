@@ -1,6 +1,7 @@
 from decimal import Decimal
 from rest_framework import serializers
 from .models import Advance, AdvanceTransaction
+from core.validators import validate_positive_amount, validate_date_not_future
 
 
 class AdvanceTransactionSerializer(serializers.ModelSerializer):
@@ -56,6 +57,37 @@ class AdvanceSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'outstanding_balance', 'approved_by_name', 'created_at', 'updated_at']
+
+    def validate_principal_amount(self, value):
+        return validate_positive_amount(value, field_name='Principal amount', allow_zero=False)
+
+    def validate_monthly_deduction(self, value):
+        if value is not None:
+            return validate_positive_amount(value, field_name='Monthly deduction', allow_zero=True)
+        return value
+
+    def validate_issue_date(self, value):
+        if value:
+            return validate_date_not_future(value, field_name='Issue date')
+        return value
+
+    def validate(self, attrs):
+        principal = attrs.get('principal_amount', self.instance.principal_amount if self.instance else None)
+        deduction = attrs.get('monthly_deduction', self.instance.monthly_deduction if self.instance else None)
+        issue_date = attrs.get('issue_date', self.instance.issue_date if self.instance else None)
+        repay_date = attrs.get('repayment_start_date', self.instance.repayment_start_date if self.instance else None)
+
+        if principal and deduction and deduction > principal:
+            raise serializers.ValidationError(
+                f"Monthly deduction (₹{deduction}) cannot exceed principal sanction amount (₹{principal})."
+            )
+
+        if issue_date and repay_date and repay_date < issue_date:
+            raise serializers.ValidationError(
+                "Repayment start date cannot be earlier than loan/advance issue date."
+            )
+
+        return attrs
 
     def create(self, validated_data):
         # Outstanding balance starts equal to principal amount

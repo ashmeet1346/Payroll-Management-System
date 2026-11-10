@@ -72,6 +72,8 @@ export const DepartmentService = {
   async create(dept) {
     const payload = {
       name: dept.name,
+      code: dept.code || '',
+      department_type: dept.departmentType || dept.department_type || 'Production',
       description: dept.description || '',
       head: dept.head || '',
       location: dept.location || '',
@@ -88,6 +90,8 @@ export const DepartmentService = {
   async update(id, dept) {
     const payload = {
       name: dept.name,
+      code: dept.code || '',
+      department_type: dept.departmentType || dept.department_type || 'Production',
       description: dept.description || '',
       head: dept.head || '',
       location: dept.location || '',
@@ -109,6 +113,122 @@ export const DepartmentService = {
     return handleResponse(response);
   },
 };
+
+/* ==========================================================================
+   DESIGNATION SERVICE
+   ========================================================================== */
+export const DesignationService = {
+  async getAll(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    const url = `${BASE_URL}/api/departments/designations/${query ? `?${query}` : ''}`;
+    const response = await fetch(url, {
+      headers: getAuthHeaders(),
+    });
+    const data = await handleResponse(response);
+    return Array.isArray(data) ? data : (data?.results || []);
+  },
+
+  async create(designation) {
+    const payload = {
+      title: designation.title,
+      code: designation.code || '',
+      department: designation.department || null,
+      description: designation.description || '',
+      is_active: designation.is_active !== undefined ? designation.is_active : designation.status !== 'Inactive',
+    };
+    const response = await fetch(`${BASE_URL}/api/departments/designations/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
+  },
+
+  async update(id, designation) {
+    const payload = {
+      title: designation.title,
+      code: designation.code || '',
+      department: designation.department || null,
+      description: designation.description || '',
+      is_active: designation.is_active !== undefined ? designation.is_active : designation.status !== 'Inactive',
+    };
+    const response = await fetch(`${BASE_URL}/api/departments/designations/${id}/`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
+  },
+
+  async delete(id) {
+    const response = await fetch(`${BASE_URL}/api/departments/designations/${id}/`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+};
+
+/* ==========================================================================
+   WORK AREA SERVICE
+   ========================================================================== */
+export const WorkAreaService = {
+  async getAll() {
+    try {
+      const areas = await DataStoreService.get('work_areas', []);
+      return Array.isArray(areas) ? areas : [];
+    } catch (e) {
+      console.warn('Error fetching work areas:', e);
+      return [];
+    }
+  },
+
+  async create(workArea) {
+    const list = await this.getAll();
+    const newArea = {
+      id: workArea.id || `WA-${Date.now().toString().slice(-4)}`,
+      name: workArea.name.trim(),
+      code: (workArea.code || '').trim().toUpperCase(),
+      description: (workArea.description || '').trim(),
+      status: workArea.status || (workArea.is_active === false ? 'Inactive' : 'Active'),
+      is_active: workArea.status !== 'Inactive' && workArea.is_active !== false,
+      created_at: new Date().toISOString(),
+    };
+    const updated = [newArea, ...list];
+    await DataStoreService.save('work_areas', updated);
+    return newArea;
+  },
+
+  async update(id, patch) {
+    const list = await this.getAll();
+    const updated = list.map((a) => {
+      if (String(a.id) === String(id) || a.code === id) {
+        const status = patch.status !== undefined ? patch.status : (patch.is_active === false ? 'Inactive' : a.status);
+        return {
+          ...a,
+          ...patch,
+          name: patch.name !== undefined ? patch.name.trim() : a.name,
+          code: patch.code !== undefined ? patch.code.trim().toUpperCase() : a.code,
+          description: patch.description !== undefined ? patch.description.trim() : a.description,
+          status,
+          is_active: status === 'Active',
+          updated_at: new Date().toISOString(),
+        };
+      }
+      return a;
+    });
+    await DataStoreService.save('work_areas', updated);
+    return updated.find((a) => String(a.id) === String(id));
+  },
+
+  async delete(id) {
+    const list = await this.getAll();
+    const updated = list.filter((a) => String(a.id) !== String(id) && a.code !== id);
+    await DataStoreService.save('work_areas', updated);
+    return { success: true };
+  },
+};
+
 
 /* ==========================================================================
    WORKER SERVICE
@@ -240,6 +360,24 @@ export const ContractorService = {
     });
     return handleResponse(response);
   },
+
+  async update(id, contractor) {
+    const response = await fetch(`${BASE_URL}/api/contractors/${id}/`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(contractor),
+    });
+    return handleResponse(response);
+  },
+
+  async delete(id) {
+    const response = await fetch(`${BASE_URL}/api/contractors/${id}/`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
 
   async getBills() {
     const response = await fetch(`${BASE_URL}/api/contractors/bills/`, {
@@ -381,6 +519,76 @@ export const PayrollService = {
 
   async getPayslip(lineId) {
     const response = await fetch(`${BASE_URL}/api/payroll/lines/${lineId}/payslip/`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+};
+
+/* ==========================================================================
+   WORKER PAYMENT & BANK TRANSACTION SERVICE
+   ========================================================================== */
+export const PaymentService = {
+  async getBankAccounts() {
+    const response = await fetch(`${BASE_URL}/api/payroll/bank-accounts/`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await handleResponse(response);
+    return Array.isArray(data) ? data : (data?.results || []);
+  },
+
+  async createBankAccount(payload) {
+    const response = await fetch(`${BASE_URL}/api/payroll/bank-accounts/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
+  },
+
+  async getNextVoucherNumber() {
+    const response = await fetch(`${BASE_URL}/api/payroll/payment-vouchers/next-number/`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  async getPaymentVouchers(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    const response = await fetch(`${BASE_URL}/api/payroll/payment-vouchers/${query ? `?${query}` : ''}`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await handleResponse(response);
+    return Array.isArray(data) ? data : (data?.results || []);
+  },
+
+  async getPaymentVoucher(id) {
+    const response = await fetch(`${BASE_URL}/api/payroll/payment-vouchers/${id}/`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  async createPaymentVoucher(payload) {
+    const response = await fetch(`${BASE_URL}/api/payroll/payment-vouchers/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
+  },
+
+  async reversePaymentVoucher(id, reason = '') {
+    const response = await fetch(`${BASE_URL}/api/payroll/payment-vouchers/${id}/reverse/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ reason }),
+    });
+    return handleResponse(response);
+  },
+
+  async getWorkerPayableSummary(workerId) {
+    const response = await fetch(`${BASE_URL}/api/payroll/workers/${workerId}/payable-summary/`, {
       headers: getAuthHeaders(),
     });
     return handleResponse(response);

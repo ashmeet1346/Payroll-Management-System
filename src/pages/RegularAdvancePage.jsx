@@ -1,7 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { DataStoreService, WorkerService } from '../services/api';
+import PaymentForumModal from '../components/PaymentForumModal';
+import { validateAdvance, validateDate } from '../utils/validation';
 import {
   HandCoins,
+  Banknote,
   Search,
   Filter,
   ArrowLeft,
@@ -27,7 +30,8 @@ import {
   Sparkles,
   Layers,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  Trash2
 } from 'lucide-react';
 
 // Sample worker photos matching PaySphere roster
@@ -53,9 +57,12 @@ export default function RegularAdvancePage({ onBackToAdvanceCards, onSwitchToFix
   const [departmentFilter, setDepartmentFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedWorkerForModal, setSelectedWorkerForModal] = useState(null);
+  const [issueAdvanceWorker, setIssueAdvanceWorker] = useState(null);
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+  const [issueErrors, setIssueErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // New Advance Form State
   const [issueForm, setIssueForm] = useState({
@@ -69,13 +76,13 @@ export default function RegularAdvancePage({ onBackToAdvanceCards, onSwitchToFix
   });
 
   // Load advances from datastore and sync with registered workers
-  useEffect(() => {
-    let isMounted = true;
-    Promise.all([
-      DataStoreService.get('advances_regular', []),
-      WorkerService.getAll().catch(() => []),
-    ]).then(([savedRecords, registeredWorkers]) => {
-      if (!isMounted) return;
+  const loadAdvances = async () => {
+    try {
+      const [savedRecords, registeredWorkers] = await Promise.all([
+        DataStoreService.get('advances_regular', []),
+        WorkerService.getAll().catch(() => []),
+      ]);
+
       const recordsMap = new Map();
       if (Array.isArray(savedRecords)) {
         savedRecords.forEach((r) => recordsMap.set(r.workerId, r));
@@ -83,9 +90,19 @@ export default function RegularAdvancePage({ onBackToAdvanceCards, onSwitchToFix
 
       if (Array.isArray(registeredWorkers)) {
         registeredWorkers.forEach((rw) => {
-          if (!recordsMap.has(rw.workerId)) {
-            recordsMap.set(rw.workerId, {
-              workerId: rw.workerId,
+          const wId = rw.workerId || rw.worker_id || rw.id;
+          if (recordsMap.has(wId)) {
+            const existing = recordsMap.get(wId);
+            recordsMap.set(wId, {
+              ...existing,
+              name: rw.name || existing.name,
+              department: rw.department || existing.department || 'Production',
+              designation: rw.designation || existing.designation || 'Worker',
+              photo: rw.photo || existing.photo || SAMPLE_AVATARS[0],
+            });
+          } else {
+            recordsMap.set(wId, {
+              workerId: wId,
               name: rw.name,
               department: rw.department || 'Production',
               designation: rw.designation || 'Worker',
@@ -101,12 +118,63 @@ export default function RegularAdvancePage({ onBackToAdvanceCards, onSwitchToFix
       if (merged.length > 0) {
         setIssueForm((prev) => ({ ...prev, workerId: merged[0].workerId }));
       }
-    });
+    } catch (err) {
+      console.warn('Failed to load advances in RegularAdvancePage:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadAdvances();
+
+    const handleSync = () => {
+      loadAdvances();
+    };
+
+    window.addEventListener('paysphere-payment-completed', handleSync);
+    window.addEventListener('paysphere-advance-updated', handleSync);
 
     return () => {
-      isMounted = false;
+      window.removeEventListener('paysphere-payment-completed', handleSync);
+      window.removeEventListener('paysphere-advance-updated', handleSync);
     };
   }, []);
+
+  // Delete an individual advance transaction with live cross-module update
+  const handleDeleteTransaction = async (workerId, txId) => {
+    if (!window.confirm('Are you sure you want to delete this advance transaction?')) return;
+
+    const updated = workers.map((w) => {
+      if (w.workerId === workerId) {
+        return {
+          ...w,
+          transactions: (w.transactions || []).filter((t) => t.id !== txId),
+        };
+      }
+      return w;
+    });
+
+    try {
+      setWorkers(updated);
+      await DataStoreService.save('advances_regular', updated);
+
+      if (selectedWorkerForModal && selectedWorkerForModal.workerId === workerId) {
+        setSelectedWorkerForModal({
+          ...selectedWorkerForModal,
+          transactions: (selectedWorkerForModal.transactions || []).filter((t) => t.id !== txId),
+        });
+      }
+
+      // Dispatch cross-module sync events so Dashboard, Worker Profile & Payment Entry update immediately
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('paysphere-advance-updated', { detail: { workerId, txId } }));
+      }
+
+      showToast('Advance transaction deleted successfully.');
+    } catch (err) {
+      console.warn('Failed to delete advance transaction:', err);
+      showToast('Error deleting transaction.');
+    }
+  };
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -171,11 +239,27 @@ export default function RegularAdvancePage({ onBackToAdvanceCards, onSwitchToFix
   }, [workers, searchQuery, departmentFilter, statusFilter]);
 
   // Handle Issue Advance Submission
-  const handleIssueAdvance = (e) => {
+  const handleIssueAdvance = async (e) => {
     e.preventDefault();
+    const errors = {};
     const targetWorker = workers.find((w) => w.workerId === issueForm.workerId);
-    if (!targetWorker) return;
+    if (!targetWorker) {
+      errors.workerId = 'Please select a worker.';
+    }
 
+    const amtErr = validateAdvance(issueForm.amount, 50000);
+    if (amtErr) errors.amount = amtErr;
+
+    const dateErr = validateDate(issueForm.date, 'Advance Date', false);
+    if (dateErr) errors.date = dateErr;
+
+    if (Object.keys(errors).length > 0) {
+      setIssueErrors(errors);
+      showToast(`Validation error: ${Object.values(errors)[0]}`);
+      return;
+    }
+
+    setIsSubmitting(true);
     const newTx = {
       id: `ADV-2026-${Date.now().toString().slice(-4)}`,
       date: issueForm.date,
@@ -197,13 +281,17 @@ export default function RegularAdvancePage({ onBackToAdvanceCards, onSwitchToFix
       return w;
     });
 
-    setWorkers(updated);
-    DataStoreService.save('advances_regular', updated).catch((err) => {
+    try {
+      setWorkers(updated);
+      await DataStoreService.save('advances_regular', updated);
+      setIsIssueModalOpen(false);
+      setIssueErrors({});
+      showToast(`₹${issueForm.amount.toLocaleString('en-IN')} advance issued to ${targetWorker.name} (${targetWorker.workerId})`);
+    } catch (err) {
       console.warn('Failed to save advances to datastore:', err);
-    });
-
-    setIsIssueModalOpen(false);
-    showToast(`₹${issueForm.amount.toLocaleString('en-IN')} advance issued to ${targetWorker.name} (${targetWorker.workerId})`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Simulate Bulk Import
@@ -482,17 +570,33 @@ export default function RegularAdvancePage({ onBackToAdvanceCards, onSwitchToFix
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedWorkerForModal(w);
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-sky-600 text-slate-700 hover:text-white transition-all text-[11px] font-semibold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                        >
-                          <Eye className="w-3 h-3" />
-                          <span>View Month</span>
-                        </button>
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIssueAdvanceWorker(w);
+                              setIsIssueModalOpen(true);
+                            }}
+                            className="px-2 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white transition-all text-[11px] font-semibold cursor-pointer inline-flex items-center gap-1 border border-emerald-200"
+                            title={`Give Advance / Settle to ${w.name}`}
+                          >
+                            <Banknote className="w-3 h-3" />
+                            <span>Pay</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedWorkerForModal(w);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-sky-600 text-slate-700 hover:text-white transition-all text-[11px] font-semibold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>View Month</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -582,30 +686,49 @@ export default function RegularAdvancePage({ onBackToAdvanceCards, onSwitchToFix
                     <th className="py-2.5 px-3">Approver</th>
                     <th className="py-2.5 px-3 text-right">Amount</th>
                     <th className="py-2.5 px-3 text-center">Status</th>
+                    <th className="py-2.5 px-3 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {selectedWorkerForModal.transactions.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-mono font-medium">{tx.date}</td>
-                      <td className="py-2.5 px-3 font-mono text-slate-800">{tx.voucher}</td>
-                      <td className="py-2.5 px-3 font-medium text-slate-600">{tx.mode}</td>
-                      <td className="py-2.5 px-3 text-slate-800">{tx.purpose}</td>
-                      <td className="py-2.5 px-3 text-[11px] text-slate-500">{tx.approvedBy}</td>
-                      <td className="py-2.5 px-3 text-right font-mono font-extrabold text-slate-900">
-                        ₹ {tx.amount.toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          tx.status === 'Deducted in Salary'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {tx.status}
-                        </span>
+                  {selectedWorkerForModal.transactions && selectedWorkerForModal.transactions.length > 0 ? (
+                    selectedWorkerForModal.transactions.map((tx) => (
+                      <tr key={tx.id} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-mono font-medium">{tx.date}</td>
+                        <td className="py-2.5 px-3 font-mono text-slate-800">{tx.voucher}</td>
+                        <td className="py-2.5 px-3 font-medium text-slate-600">{tx.mode}</td>
+                        <td className="py-2.5 px-3 text-slate-800">{tx.purpose}</td>
+                        <td className="py-2.5 px-3 text-[11px] text-slate-500">{tx.approvedBy}</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-extrabold text-slate-900">
+                          ₹ {Number(tx.amount || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                            tx.status === 'Deducted in Salary'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {tx.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTransaction(selectedWorkerForModal.workerId, tx.id)}
+                            className="p-1 rounded-lg text-rose-500 hover:text-white hover:bg-rose-600 transition-colors cursor-pointer"
+                            title="Delete this advance transaction"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        No advance transactions recorded for this worker.
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -638,173 +761,32 @@ export default function RegularAdvancePage({ onBackToAdvanceCards, onSwitchToFix
       )}
 
       {/* ============================================================== */}
-      {/* MODAL: GIVE / ISSUE NEW ADVANCE TO WORKER */}
+      {/* MODAL: UNIFIED PAYMENT FORUM (ADVANCE DISBURSAL) */}
       {/* ============================================================== */}
       {isIssueModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-5 bg-sky-50 border-b border-sky-200/80 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-xs">
-                  <HandCoins className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Issue Monthly Advance</h3>
-                  <p className="text-xs text-slate-600">Disburse mid-month advance with automatic salary deduction</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsIssueModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-white transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleIssueAdvance} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Select Worker *
-                </label>
-                <select
-                  value={issueForm.workerId}
-                  onChange={(e) => setIssueForm({ ...issueForm, workerId: e.target.value })}
-                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20"
-                >
-                  {workers.map((w) => (
-                    <option key={w.workerId} value={w.workerId}>
-                      {w.name} ({w.workerId}) &bull; {w.department}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Advance Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={issueForm.date}
-                    onChange={(e) => setIssueForm({ ...issueForm, date: e.target.value })}
-                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Payment Mode *
-                  </label>
-                  <select
-                    value={issueForm.mode}
-                    onChange={(e) => setIssueForm({ ...issueForm, mode: e.target.value })}
-                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20"
-                  >
-                    <option value="Cash">Cash (Plant Cashier)</option>
-                    <option value="UPI">UPI / PhonePe</option>
-                    <option value="Bank Transfer">Bank Transfer (NEFT)</option>
-                    <option value="Cheque">Company Cheque</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Advance Amount (₹) *
-                </label>
-                <div className="grid grid-cols-4 gap-2 mb-2">
-                  {[500, 1000, 2000, 3000].map((amt) => (
-                    <button
-                      key={amt}
-                      type="button"
-                      onClick={() => setIssueForm({ ...issueForm, amount: amt })}
-                      className={`py-1.5 px-2 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
-                        issueForm.amount === amt
-                          ? 'bg-sky-600 text-white border-sky-600'
-                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      ₹ {amt}
-                    </button>
-                  ))}
-                </div>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="100"
-                    step="100"
-                    required
-                    value={issueForm.amount}
-                    onChange={(e) => setIssueForm({ ...issueForm, amount: Number(e.target.value) })}
-                    className="w-full p-2.5 text-xs rounded-xl border border-slate-200 font-mono font-bold"
-                    placeholder="Enter custom amount..."
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">INR</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Purpose / Reason for Advance *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={issueForm.purpose}
-                  onChange={(e) => setIssueForm({ ...issueForm, purpose: e.target.value })}
-                  placeholder="e.g. Medical emergency, School fee, Grocery..."
-                  className="w-full p-2.5 text-xs rounded-xl border border-slate-200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Approving Authority *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={issueForm.approvedBy}
-                  onChange={(e) => setIssueForm({ ...issueForm, approvedBy: e.target.value })}
-                  className="w-full p-2.5 text-xs rounded-xl border border-slate-200 text-slate-700"
-                />
-              </div>
-
-              <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 flex items-center gap-2.5">
-                <input
-                  type="checkbox"
-                  id="deductToggle"
-                  checked={issueForm.deductInCurrentSalary}
-                  onChange={(e) => setIssueForm({ ...issueForm, deductInCurrentSalary: e.target.checked })}
-                  className="w-4 h-4 text-emerald-600 rounded-sm focus:ring-emerald-500 cursor-pointer"
-                />
-                <label htmlFor="deductToggle" className="text-xs text-emerald-900 font-medium cursor-pointer">
-                  Auto-deduct 100% (₹{issueForm.amount}) from October 2026 salary cycle
-                </label>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsIssueModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Disburse Advance</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <PaymentForumModal
+          isOpen={isIssueModalOpen}
+          onClose={() => {
+            setIsIssueModalOpen(false);
+            setIssueAdvanceWorker(null);
+          }}
+          initialCategory="Advance"
+          initialWorkerId={issueAdvanceWorker?.workerId || ''}
+          initialWorkerName={issueAdvanceWorker?.name || ''}
+          title={issueAdvanceWorker ? `Issue Advance - ${issueAdvanceWorker.name}` : 'Disburse Salary Advance'}
+          onSuccess={() => {
+            setIsIssueModalOpen(false);
+            setIssueAdvanceWorker(null);
+            // Refresh advances register
+            DataStoreService.get('advances_regular', []).then((saved) => {
+              if (Array.isArray(saved) && saved.length > 0) {
+                setWorkers(saved);
+              }
+            });
+            setToastMessage('Advance successfully disbursed and registered!');
+            setTimeout(() => setToastMessage(null), 4000);
+          }}
+        />
       )}
 
       {/* ============================================================== */}

@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { WorkerService } from '../services/api';
 import {
   Factory,
   Calendar,
@@ -169,6 +170,34 @@ export default function ProductionLineSalary({ onBackToSalaryModules }) {
   const [selectedMonth, setSelectedMonth] = useState('2026-10'); // October 2026
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSection, setSelectedSection] = useState('All');
+
+  useEffect(() => {
+    let isMounted = true;
+    WorkerService.getAll()
+      .then((allWorkers) => {
+        if (!isMounted) return;
+        if (Array.isArray(allWorkers)) {
+          const relevant = allWorkers.filter((w) => w.salaryPolicy === 'PIECE_RATE');
+          const mapped = relevant.map((w, idx) => ({
+            id: w.workerId || `PRD-W${idx + 1}`,
+            name: w.name,
+            role: w.designation || 'Press Line Tech',
+            section: w.department || 'Production',
+            photo: w.photo || SAMPLE_AVATARS[0],
+            products: ['ITM-01', 'ITM-02'],
+            baseRatePerPc: parseFloat(w.policyRate || 3.5),
+            dailyLogs: generateWorkerProductionLogs(idx),
+          }));
+          setWorkers(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load production workers:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Modals & Drawers
   const [selectedWorkerForDetails, setSelectedWorkerForDetails] = useState(null);

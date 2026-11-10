@@ -11,6 +11,12 @@ from .views import (
     SalaryPaymentCreateView,
     PayslipDownloadView,
     PayrollExportView,
+    BankAccountListCreateView,
+    PaymentVoucherListCreateView,
+    PaymentVoucherDetailView,
+    PaymentVoucherReverseView,
+    PaymentVoucherNextNumberView,
+    WorkerPayableSummaryView,
 )
 
 urlpatterns = [
@@ -25,4 +31,11 @@ urlpatterns = [
     path('lines/<int:pk>/', PayrollLineDetailView.as_view(), name='payroll-line-detail'),
     path('lines/<int:line_pk>/pay/', SalaryPaymentCreateView.as_view(), name='payroll-line-pay'),
     path('lines/<int:line_pk>/payslip/', PayslipDownloadView.as_view(), name='payroll-line-payslip'),
+    # Bank Accounts & Payment Vouchers
+    path('bank-accounts/', BankAccountListCreateView.as_view(), name='payroll-bank-accounts'),
+    path('payment-vouchers/', PaymentVoucherListCreateView.as_view(), name='payroll-payment-vouchers'),
+    path('payment-vouchers/next-number/', PaymentVoucherNextNumberView.as_view(), name='payroll-payment-voucher-next'),
+    path('payment-vouchers/<int:pk>/', PaymentVoucherDetailView.as_view(), name='payroll-payment-voucher-detail'),
+    path('payment-vouchers/<int:pk>/reverse/', PaymentVoucherReverseView.as_view(), name='payroll-payment-voucher-reverse'),
+    path('workers/<str:worker_id>/payable-summary/', WorkerPayableSummaryView.as_view(), name='payroll-worker-payable-summary'),
 ]

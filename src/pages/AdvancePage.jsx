@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -17,11 +17,13 @@ import {
   Sparkles,
   TrendingUp,
   Receipt,
+  ReceiptText,
   PiggyBank
 } from 'lucide-react';
 import PaySphereLogo from '../components/PaySphereLogo';
 import RegularAdvancePage from './RegularAdvancePage';
 import FixedAdvancePage from './FixedAdvancePage';
+import { DataStoreService } from '../services/api';
 
 export default function AdvancePage({
   onNavigateDashboard,
@@ -30,6 +32,8 @@ export default function AdvancePage({
   onNavigateAttendance,
   onNavigateContractor,
   onNavigateSalary,
+  onNavigateAdvance,
+  onNavigatePayments,
   onNavigateReports,
   onNavigateAdministration,
   onLogout
@@ -37,6 +41,54 @@ export default function AdvancePage({
   const [activeNav, setActiveNav] = useState('Advance');
   // 'regular-advance', 'fixed-advance', or null for 2-cards overview
   const [activeAdvanceModule, setActiveAdvanceModule] = useState(null);
+  const [regularAdvances, setRegularAdvances] = useState([]);
+  const [fixedLoans, setFixedLoans] = useState([]);
+
+  const loadAdvances = () => {
+    Promise.all([
+      DataStoreService.get('advances_regular', []),
+      DataStoreService.get('advances_fixed', [])
+    ]).then(([reg, fix]) => {
+      if (Array.isArray(reg)) setRegularAdvances(reg);
+      if (Array.isArray(fix)) setFixedLoans(fix);
+    });
+  };
+
+  useEffect(() => {
+    loadAdvances();
+
+    const handleSync = () => {
+      loadAdvances();
+    };
+
+    window.addEventListener('paysphere-payment-completed', handleSync);
+    window.addEventListener('paysphere-advance-updated', handleSync);
+
+    return () => {
+      window.removeEventListener('paysphere-payment-completed', handleSync);
+      window.removeEventListener('paysphere-advance-updated', handleSync);
+    };
+  }, [activeAdvanceModule]);
+
+  // Compute live advance metrics
+  const regularAdvanceTotal = React.useMemo(() => {
+    let sum = 0;
+    regularAdvances.forEach(w => {
+      (w.transactions || []).forEach(tx => {
+        sum += Number(tx.amount || 0);
+      });
+    });
+    return sum;
+  }, [regularAdvances]);
+
+  const fixedAdvanceBalanceTotal = React.useMemo(() => {
+    let balance = 0;
+    fixedLoans.forEach(loan => {
+      const recovered = (loan.repayments || []).reduce((s, r) => s + Number(r.emiAmount || 0), 0);
+      balance += Math.max(0, Number(loan.principalAmount || 0) - recovered);
+    });
+    return balance;
+  }, [fixedLoans]);
 
   // Sidebar navigation items
   const navItems = [
@@ -47,6 +99,7 @@ export default function AdvancePage({
     { name: 'Contractor', icon: HardHat },
     { name: 'Salary', icon: Banknote },
     { name: 'Advance', icon: HandCoins },
+    { name: 'Payment Entry', icon: ReceiptText },
     { name: 'Reports', icon: FileBarChart },
     { name: 'Administration Setting', icon: Settings },
   ];
@@ -59,8 +112,8 @@ export default function AdvancePage({
       subtitle: 'Monthly Running Advance',
       category: 'Short-Term / Mid-Month Payout',
       metricLabel: 'This Month Advance',
-      metricValue: '₹ 0',
-      metricSub: 'No advances disbursed yet',
+      metricValue: `₹ ${regularAdvanceTotal.toLocaleString('en-IN')}`,
+      metricSub: regularAdvanceTotal > 0 ? `${regularAdvances.length} worker advances recorded` : 'No advances disbursed yet',
       icon: HandCoins,
       iconColor: 'text-sky-600',
       iconBg: 'bg-sky-50 border-sky-200/80',
@@ -74,8 +127,8 @@ export default function AdvancePage({
       subtitle: 'Long-Term Installment Loan',
       category: 'Multi-Month EMI Recovery',
       metricLabel: 'Fixed Advance Balance',
-      metricValue: '₹ 0',
-      metricSub: 'Zero active loans',
+      metricValue: `₹ ${fixedAdvanceBalanceTotal.toLocaleString('en-IN')}`,
+      metricSub: fixedLoans.length > 0 ? `${fixedLoans.length} active loan accounts` : 'Zero active loans',
       icon: Wallet,
       iconColor: 'text-indigo-600',
       iconBg: 'bg-indigo-50 border-indigo-200/80',
@@ -103,9 +156,11 @@ export default function AdvancePage({
           {/* User Profile Card */}
           <div className="px-4 mb-3">
             <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 border border-indigo-400/20 text-indigo-200 flex items-center justify-center font-semibold text-base shrink-0">
-                A
-              </div>
+              <img
+                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+                alt="Ashmeet Admin"
+                className="w-10 h-10 rounded-lg object-cover border border-white/20 shrink-0 shadow-sm"
+              />
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-semibold text-white truncate leading-tight">Ashmeet</span>
                 <span className="text-xs text-indigo-300/70 font-normal mt-0.5">Admin</span>
@@ -144,6 +199,8 @@ export default function AdvancePage({
                       onNavigateSalary();
                     } else if (item.name === 'Advance') {
                       setActiveAdvanceModule(null);
+                    } else if (item.name === 'Payment Entry' && onNavigatePayments) {
+                      onNavigatePayments();
                     } else if (item.name === 'Reports' && onNavigateReports) {
                       onNavigateReports();
                     } else if (item.name === 'Administration Setting' && onNavigateAdministration) {

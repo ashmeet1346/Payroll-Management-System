@@ -1,5 +1,27 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { WorkerService, DepartmentService } from '../services/api';
+import { WorkerService, DepartmentService, DesignationService, ContractorService, PaymentService, WorkAreaService } from '../services/api';
+import PaymentForumModal from '../components/PaymentForumModal';
+import WorkerFullProfileView from '../components/WorkerFullProfileView';
+import {
+  validateName,
+  validateMobile,
+  validateDOB,
+  calculateAgeFromDOB,
+  validateDateOfJoining,
+  validateAadhaar,
+  maskAadhaar,
+  validatePAN,
+  validateBankAccount,
+  maskBankAccount,
+  validateIFSC,
+  validateSalary,
+  getNextWorkerId,
+  sanitizeNameInput,
+  sanitizeNumericInput,
+  sanitizeAlphaNumericUpper,
+  formatDateForInput,
+  formatDateDisplay,
+} from '../utils/validation';
 import {
   LayoutDashboard,
   Users,
@@ -30,6 +52,7 @@ import {
   Upload,
   Camera,
   CreditCard,
+  ReceiptText,
   FileText,
   MapPin,
   User,
@@ -39,7 +62,10 @@ import {
   Clock,
   Sparkles,
   EyeOff,
-  Lock
+  Lock,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from 'lucide-react';
 import PaySphereLogo from '../components/PaySphereLogo';
 
@@ -57,47 +83,149 @@ const SAMPLE_AVATARS = [
   'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
 ];
 
+// Salary policies for Permanent Staff
+export const PERMANENT_POLICIES = [
+  {
+    id: 'FIXED_ABSENT',
+    title: 'Fully fixed salary with absent affecting their salary',
+    desc: 'Monthly fixed salary. Any absence directly affects and reduces salary.',
+    rateUnit: '₹ / Month',
+  },
+  {
+    id: 'FIXED_ABSENT_OT',
+    title: 'Fixed with absent and overtime (Sunday and Holiday)',
+    desc: 'Fixed salary with absent deductions plus standard overtime on Sunday/Holidays.',
+    rateUnit: '₹ / Month',
+  },
+  {
+    id: 'TIME_BASED',
+    title: 'Basic time based salary (Daily/Hourly)',
+    desc: 'Wages calculated based on clocked hours or daily shift counts.',
+    rateUnit: '₹ / Day or Hour',
+  },
+  {
+    id: 'PIECE_RATE',
+    title: 'Pcs rate salary',
+    desc: 'Wages paid directly on units or piece count manufactured.',
+    rateUnit: '₹ / Piece',
+  },
+];
+
+// Salary policies for Contractor Workers
+export const CONTRACTOR_POLICIES = [
+  {
+    id: 'PER_TONNAGE',
+    title: 'Rs per tonnage',
+    desc: 'Compensation calculated on total metric tonnage handled.',
+    rateUnit: '₹ / Ton',
+  },
+  {
+    id: 'PER_KG',
+    title: 'Rs per kg',
+    desc: 'Compensation calculated on total kilograms produced/cut.',
+    rateUnit: '₹ / Kg',
+  },
+  {
+    id: 'PER_HOUR',
+    title: 'Rs per hour',
+    desc: 'Contract labour rate per clocked working hour.',
+    rateUnit: '₹ / Hour',
+  },
+  {
+    id: 'PER_DAY',
+    title: 'Rs per day',
+    desc: 'Fixed contractor daily shift wage rate.',
+    rateUnit: '₹ / Day',
+  },
+];
+
 // Initial workers list (empty, ready for user testing and actual data entry)
 const INITIAL_WORKERS = [];
 
-export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, onNavigateAttendance, onNavigateContractor, onNavigateSalary, onNavigateAdvance, onNavigateReports, onNavigateAdministration }) => {
+export const WorkersPage = ({
+  onNavigateBack,
+  onLogout,
+  onNavigateDepartment,
+  onNavigateAttendance,
+  onNavigateContractor,
+  onNavigateSalary,
+  onNavigateAdvance,
+  onNavigatePayments,
+  onNavigateReports,
+  onNavigateAdministration,
+  initialContractorAgency,
+}) => {
   const [activeNav, setActiveNav] = useState('Workers');
   const [workers, setWorkers] = useState(INITIAL_WORKERS);
   const [departmentsList, setDepartmentsList] = useState([]);
+  const [designationsList, setDesignationsList] = useState([]);
+  const [contractorsList, setContractorsList] = useState([]);
+  const [workAreasList, setWorkAreasList] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [workerPayableSummary, setWorkerPayableSummary] = useState(null);
 
-  // Load workers and departments from database on mount
-  useEffect(() => {
-    let isMounted = true;
+  // Load workers, departments, designations, contractors, and work areas from database
+  const loadInitialData = () => {
     setIsLoading(true);
-
     Promise.all([
       WorkerService.getAll().catch(() => []),
       DepartmentService.getAll().catch(() => []),
+      DesignationService.getAll().catch(() => []),
+      ContractorService.getAll().catch(() => []),
+      WorkAreaService.getAll().catch(() => []),
     ])
-      .then(([fetchedWorkers, fetchedDepts]) => {
-        if (!isMounted) return;
+      .then(([fetchedWorkers, fetchedDepts, fetchedDesigs, fetchedContractors, fetchedWorkAreas]) => {
         if (Array.isArray(fetchedWorkers)) {
           setWorkers(fetchedWorkers);
         }
         if (Array.isArray(fetchedDepts)) {
           setDepartmentsList(fetchedDepts);
         }
+        if (Array.isArray(fetchedDesigs)) {
+          setDesignationsList(fetchedDesigs);
+        }
+        if (Array.isArray(fetchedContractors)) {
+          setContractorsList(fetchedContractors);
+        }
+        if (Array.isArray(fetchedWorkAreas)) {
+          setWorkAreasList(fetchedWorkAreas);
+        }
       })
       .finally(() => {
-        if (isMounted) setIsLoading(false);
+        setIsLoading(false);
       });
+  };
 
-    return () => {
-      isMounted = false;
-    };
+  useEffect(() => {
+    loadInitialData();
   }, []);
+
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('All');
+  const [selectedWorkArea, setSelectedWorkArea] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedWorkerType, setSelectedWorkerType] = useState('All');
+  const [workerSortConfig, setWorkerSortConfig] = useState({ key: 'name', direction: 'asc' });
+
+  // Column Sort Toggle Handler (Name only)
+  const handleWorkerSort = () => {
+    setWorkerSortConfig((prev) => ({
+      key: 'name',
+      direction: prev.direction === 'asc' ? 'desc' : 'asc',
+    }));
+    setCurrentPage(1);
+  };
+
+  // Helper to render sort arrow beside Worker Name column header
+  const renderSortIcon = () => {
+    return workerSortConfig.direction === 'asc' ? (
+      <ArrowUp className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+    ) : (
+      <ArrowDown className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+    );
+  };
 
   // Pagination state: now 10 rows per page as requested!
   const [currentPage, setCurrentPage] = useState(1);
@@ -107,36 +235,133 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewingWorkerProfile, setViewingWorkerProfile] = useState(null);
+  const [payWorkerModal, setPayWorkerModal] = useState(null);
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [showBankDetails, setShowBankDetails] = useState(false);
 
-  // Photo upload ref for Add / Edit
+  // Photo & Document upload refs for Add / Edit
   const fileInputRef = useRef(null);
+  const aadharFileInputRef = useRef(null);
+  const panFileInputRef = useRef(null);
+  const [adminDocPreview, setAdminDocPreview] = useState(null);
+  const [sameAsResidential, setSameAsResidential] = useState(false);
 
   // Form state with all comprehensive fields requested by user
   const initialFormState = {
     workerId: '',
     name: '',
     photo: '',
-    department: 'Production',
+    department: '',
     designation: '',
+    workArea: '',
     workerType: 'Permanent',
     gender: 'Male',
     dob: '',
-    joinDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    joinDate: new Date().toISOString().split('T')[0],
     status: 'Active',
     phone: '',
+    emergencyContact: '',
     address: '',
+    permanentAddress: '',
     contractorAgency: '',
+    // Salary Policy & Rate (default 0)
+    salaryPolicy: 'FIXED_ABSENT',
+    policyRate: '0',
     // Optional salary & payment banking fields
     bankAccount: '',
     ifscCode: '',
     // Optional statutory & verification fields
     aadharNumber: '',
     panNumber: '',
+    aadharDoc: '',
+    panDoc: '',
   };
 
   const [workerForm, setWorkerForm] = useState(initialFormState);
+  const [formErrors, setFormErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Central validation for Worker profile
+  const validateWorkerForm = (form) => {
+    const errors = {};
+    const nameErr = validateName(form.name, 'Full Name', 2, 100, true);
+    if (nameErr) errors.name = nameErr;
+
+    if (!form.department) {
+      errors.department = 'Please select a department.';
+    }
+    if (!form.designation) {
+      errors.designation = 'Please select a designation.';
+    }
+    if (!form.workArea) {
+      errors.workArea = 'Please select a work area.';
+    }
+    if (form.workerType === 'Contractor' && !form.contractorAgency) {
+      errors.contractorAgency = 'Please select a contractor agency.';
+    }
+    // Phone number is mandatory
+    const phoneErr = validateMobile(form.phone, 'Phone number', true);
+    if (phoneErr) errors.phone = phoneErr;
+
+    // Address is mandatory
+    if (!form.address || !form.address.trim()) {
+      errors.address = 'Current residential address is required.';
+    }
+
+    if (form.emergencyContact && form.emergencyContact.trim()) {
+      const emErr = validateMobile(form.emergencyContact, 'Emergency contact', false);
+      if (emErr) errors.emergencyContact = emErr;
+    }
+    if (form.dob && form.dob.trim()) {
+      const dobErr = validateDOB(form.dob, 18, 100);
+      if (dobErr) errors.dob = dobErr;
+    }
+    if (form.joinDate && form.joinDate.trim()) {
+      const joinErr = validateDateOfJoining(form.joinDate, false);
+      if (joinErr) errors.joinDate = joinErr;
+    }
+    if (form.aadharNumber && form.aadharNumber.trim()) {
+      const aadharErr = validateAadhaar(form.aadharNumber, false);
+      if (aadharErr) errors.aadharNumber = aadharErr;
+    }
+    if (form.panNumber && form.panNumber.trim()) {
+      const panErr = validatePAN(form.panNumber, false);
+      if (panErr) errors.panNumber = panErr;
+    }
+    if (form.bankAccount && form.bankAccount.trim()) {
+      const bankErr = validateBankAccount(form.bankAccount, false);
+      if (bankErr) errors.bankAccount = bankErr;
+    }
+    if (form.ifscCode && form.ifscCode.trim()) {
+      const ifscErr = validateIFSC(form.ifscCode, false);
+      if (ifscErr) errors.ifscCode = ifscErr;
+    }
+    if (form.policyRate !== undefined && form.policyRate !== null && String(form.policyRate).trim() !== '') {
+      const rateErr = validateSalary(form.policyRate, 'Salary / Policy rate', true, true);
+      if (rateErr) errors.policyRate = rateErr;
+    }
+    return errors;
+  };
+
+  // Available designations based on selected department in form
+  const availableDesignations = useMemo(() => {
+    if (!workerForm.department) return designationsList;
+    const deptObj = departmentsList.find(
+      (d) => d.name === workerForm.department || String(d.id) === String(workerForm.department)
+    );
+    return designationsList.filter((d) => {
+      const matchName = (d.department_name || d.departmentName) === workerForm.department;
+      const matchId = deptObj && (String(d.department) === String(deptObj.id) || String(d.departmentId) === String(deptObj.id));
+      return matchName || matchId;
+    });
+  }, [designationsList, departmentsList, workerForm.department]);
+
+  // Available work areas (every department comes under each work area)
+  const availableWorkAreas = useMemo(() => {
+    return workAreasList.filter((a) => a.status !== 'Inactive');
+  }, [workAreasList]);
+
 
   // Nav Items matching AdminDashboard
   const navItems = [
@@ -147,6 +372,7 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
     { name: 'Contractor', icon: HardHat },
     { name: 'Salary', icon: Banknote },
     { name: 'Advance', icon: HandCoins },
+    { name: 'Payment Entry', icon: ReceiptText },
     { name: 'Reports', icon: FileBarChart },
     { name: 'Administration Setting', icon: Settings },
   ];
@@ -156,20 +382,21 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
   const activeWorkersCount = workers.filter(w => w.status === 'Active').length;
   const inactiveWorkersCount = workers.filter(w => w.status === 'Inactive').length;
 
-  // Filtering
+  // Filtering & Sorting (Search STRICTLY on Name or ID/Code only)
   const filteredWorkers = useMemo(() => {
-    return workers.filter((worker) => {
-      const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
+    const list = workers.filter((worker) => {
       const matchesSearch =
-        worker.name.toLowerCase().includes(q) ||
-        worker.workerId.toLowerCase().includes(q) ||
-        (worker.designation && worker.designation.toLowerCase().includes(q)) ||
-        (worker.contractorAgency && worker.contractorAgency.toLowerCase().includes(q)) ||
-        (worker.bankAccount && worker.bankAccount.includes(q)) ||
-        (worker.aadharNumber && worker.aadharNumber.includes(q));
+        !q ||
+        (worker.name && worker.name.toLowerCase().includes(q)) ||
+        (worker.workerId && worker.workerId.toLowerCase().includes(q));
 
       const matchesDept =
         selectedDepartment === 'All' || worker.department === selectedDepartment;
+
+      const matchesWorkArea =
+        selectedWorkArea === 'All' ||
+        (worker.workArea || worker.work_area) === selectedWorkArea;
 
       const matchesStatus =
         selectedStatus === 'All' || worker.status === selectedStatus;
@@ -177,9 +404,14 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
       const matchesType =
         selectedWorkerType === 'All' || worker.workerType === selectedWorkerType;
 
-      return matchesSearch && matchesDept && matchesStatus && matchesType;
+      return matchesSearch && matchesDept && matchesWorkArea && matchesStatus && matchesType;
     });
-  }, [workers, searchQuery, selectedDepartment, selectedStatus, selectedWorkerType]);
+
+    return [...list].sort((a, b) => {
+      const factor = workerSortConfig.direction === 'asc' ? 1 : -1;
+      return factor * (a.name || '').localeCompare(b.name || '');
+    });
+  }, [workers, searchQuery, selectedDepartment, selectedWorkArea, selectedStatus, selectedWorkerType, workerSortConfig]);
 
   // Pagination with 10 rows
   const totalPages = Math.ceil(filteredWorkers.length / rowsPerPage) || 1;
@@ -195,14 +427,16 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
   const handleClearFilters = () => {
     setSearchQuery('');
     setSelectedDepartment('All');
+    setSelectedWorkArea('All');
     setSelectedStatus('All');
     setSelectedWorkerType('All');
+    setWorkerSortConfig({ key: 'name', direction: 'asc' });
     setCurrentPage(1);
   };
 
   // Handle Photo File Upload
   const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -212,18 +446,76 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
     }
   };
 
+  // Handle KYC Document File Upload (Aadhaar & PAN)
+  const handleFileUpload = (e, field) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setWorkerForm(prev => ({ ...prev, [field]: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Open Add Modal
   const handleOpenAddModal = () => {
-    const nextNumber = workers.length + 1;
-    const formattedId = `W${String(nextNumber).padStart(3, '0')}`;
+    if (departmentsList.length === 0) {
+      alert('No departments found! You must create at least one Department and Designation first before adding workers.');
+      if (onNavigateDepartment) {
+        onNavigateDepartment();
+      }
+      return;
+    }
+    if (designationsList.length === 0) {
+      alert('No designations found! Please create a Designation in the Department & Designation page first.');
+      if (onNavigateDepartment) {
+        onNavigateDepartment();
+      }
+      return;
+    }
+
+    const formattedId = getNextWorkerId(workers);
+    const defaultDept = departmentsList[0]?.name || '';
+    const matchingDesigs = designationsList.filter(
+      (d) => (d.department_name || d.departmentName) === defaultDept
+    );
+    const defaultDesig = matchingDesigs.length > 0 ? matchingDesigs[0].title : (designationsList[0]?.title || '');
+    const matchingAreas = workAreasList.filter(
+      (a) => !a.department || a.department === 'All Departments' || a.department === defaultDept
+    );
+    const defaultWorkArea = matchingAreas.length > 0 ? matchingAreas[0].name : (workAreasList[0]?.name || '');
+    const defaultContractor = initialContractorAgency || contractorsList[0]?.name || '';
+    const defaultWorkerType = initialContractorAgency ? 'Contractor' : 'Permanent';
+    const defaultSalaryPolicy = initialContractorAgency ? 'PER_TONNAGE' : 'FIXED_ABSENT';
+    const defaultPolicyRate = '0';
+
+    setFormErrors({});
+    setSameAsResidential(false);
     setWorkerForm({
       ...initialFormState,
       workerId: formattedId,
-      photo: SAMPLE_AVATARS[nextNumber % SAMPLE_AVATARS.length],
-      designation: 'Machine Operator',
+      photo: '',
+      department: defaultDept,
+      designation: defaultDesig,
+      workArea: defaultWorkArea,
+      workerType: defaultWorkerType,
+      contractorAgency: defaultContractor,
       gender: 'Male',
-      dob: '15 Jan 1994',
-      address: 'Industrial Focal Point, Ludhiana',
+      dob: '',
+      joinDate: new Date().toISOString().split('T')[0],
+      address: '',
+      permanentAddress: '',
+      emergencyContact: '',
+      phone: '',
+      salaryPolicy: defaultSalaryPolicy,
+      policyRate: defaultPolicyRate,
+      bankAccount: '',
+      ifscCode: '',
+      aadharNumber: '',
+      panNumber: '',
+      aadharDoc: '',
+      panDoc: '',
     });
     setIsAddModalOpen(true);
   };
@@ -231,7 +523,15 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
   // Submit Add Worker
   const handleAddWorkerSubmit = async (e) => {
     e.preventDefault();
-    if (!workerForm.name.trim()) return;
+    if (isSubmitting) return;
+
+    const errors = validateWorkerForm(workerForm);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormErrors({});
+    setIsSubmitting(true);
 
     try {
       const payload = {
@@ -240,18 +540,25 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
         photo: workerForm.photo || SAMPLE_AVATARS[0],
         department: workerForm.department,
         designation: workerForm.designation.trim() || 'Worker',
+        workArea: workerForm.workArea || '',
         workerType: workerForm.workerType,
         gender: workerForm.gender,
         dob: workerForm.dob || '',
         address: workerForm.address || '',
+        permanentAddress: workerForm.permanentAddress || '',
         contractorAgency: workerForm.workerType === 'Contractor' ? workerForm.contractorAgency : '',
         joinDate: workerForm.joinDate,
         status: workerForm.status,
-        phone: workerForm.phone || '+91 98765 00000',
-        bankAccount: workerForm.bankAccount || '',
-        ifscCode: workerForm.ifscCode ? workerForm.ifscCode.toUpperCase() : '',
-        aadharNumber: workerForm.aadharNumber || '',
-        panNumber: workerForm.panNumber ? workerForm.panNumber.toUpperCase() : '',
+        phone: workerForm.phone ? workerForm.phone.trim() : '',
+        emergencyContact: workerForm.emergencyContact ? workerForm.emergencyContact.trim() : '',
+        salaryPolicy: workerForm.salaryPolicy || (workerForm.workerType === 'Contractor' ? 'PER_TONNAGE' : 'FIXED_ABSENT'),
+        policyRate: parseFloat(workerForm.policyRate) || 0,
+        bankAccount: workerForm.bankAccount ? workerForm.bankAccount.trim() : '',
+        ifscCode: workerForm.ifscCode ? workerForm.ifscCode.toUpperCase().trim() : '',
+        aadharNumber: workerForm.aadharNumber ? workerForm.aadharNumber.trim() : '',
+        panNumber: workerForm.panNumber ? workerForm.panNumber.toUpperCase().trim() : '',
+        aadharDoc: workerForm.aadharDoc || '',
+        panDoc: workerForm.panDoc || '',
       };
 
       const created = await WorkerService.create(payload);
@@ -259,30 +566,52 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
       setIsAddModalOpen(false);
     } catch (err) {
       alert(`Error creating worker: ${err.message || 'Server error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // Open Edit Modal
   const handleOpenEditModal = (worker) => {
     setSelectedWorker(worker);
+    setFormErrors({});
+
+    const safeDob = formatDateForInput(
+      worker.dob || worker.date_of_birth || worker.dateOfBirth || worker.dob_raw || worker.dobRaw
+    );
+    const safeJoinDate = formatDateForInput(
+      worker.joinDate || worker.joining_date || worker.joiningDate || worker.join_date || worker.joinDateRaw
+    );
+
+    const safeAddress = worker.address || '';
+    const safePermanentAddress = worker.permanentAddress || worker.permanent_address || '';
+    setSameAsResidential(Boolean(safeAddress && safePermanentAddress && safeAddress.trim() === safePermanentAddress.trim()));
+
     setWorkerForm({
-      workerId: worker.workerId,
-      name: worker.name,
+      workerId: worker.workerId || worker.worker_id || '',
+      name: worker.name || '',
       photo: worker.photo || '',
-      department: worker.department,
+      department: worker.department || '',
       designation: worker.designation || '',
-      workerType: worker.workerType,
+      workArea: worker.workArea || worker.work_area || '',
+      workerType: worker.workerType || worker.worker_type || 'Permanent',
       gender: worker.gender || 'Male',
-      dob: worker.dob || '',
-      address: worker.address || '',
-      contractorAgency: worker.contractorAgency || '',
-      joinDate: worker.joinDate,
-      status: worker.status,
+      dob: safeDob,
+      address: safeAddress,
+      permanentAddress: safePermanentAddress,
+      contractorAgency: worker.contractorAgency || worker.contractor_agency || '',
+      joinDate: safeJoinDate || new Date().toISOString().split('T')[0],
+      status: worker.status || 'Active',
       phone: worker.phone || '',
-      bankAccount: worker.bankAccount || '',
-      ifscCode: worker.ifscCode || '',
-      aadharNumber: worker.aadharNumber || '',
-      panNumber: worker.panNumber || '',
+      emergencyContact: worker.emergencyContact || worker.emergency_contact || '',
+      salaryPolicy: worker.salaryPolicy || worker.salary_policy || (worker.workerType === 'Contractor' ? 'PER_TONNAGE' : 'FIXED_ABSENT'),
+      policyRate: String(worker.policyRate || worker.policy_rate || worker.baseWage || worker.base_wage || 15000),
+      bankAccount: worker.bankAccount || worker.bank_account || '',
+      ifscCode: worker.ifscCode || worker.ifsc_code || '',
+      aadharNumber: worker.aadharNumber || worker.aadhar_number || '',
+      panNumber: worker.panNumber || worker.pan_number || '',
+      aadharDoc: worker.aadharDoc || worker.aadhar_doc || '',
+      panDoc: worker.panDoc || worker.pan_doc || '',
     });
     setIsEditModalOpen(true);
   };
@@ -290,43 +619,80 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
   // Submit Edit Worker
   const handleEditWorkerSubmit = async (e) => {
     e.preventDefault();
-    if (!workerForm.name.trim()) return;
+    if (isSubmitting) return;
+
+    const errors = validateWorkerForm(workerForm);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormErrors({});
+    setIsSubmitting(true);
 
     try {
       const payload = {
         workerId: workerForm.workerId,
-        name: workerForm.name,
+        name: workerForm.name.trim(),
         photo: workerForm.photo || selectedWorker.photo,
         department: workerForm.department,
-        designation: workerForm.designation,
+        designation: workerForm.designation.trim() || 'Worker',
+        workArea: workerForm.workArea || '',
         workerType: workerForm.workerType,
         gender: workerForm.gender,
-        dob: workerForm.dob,
-        address: workerForm.address,
+        dob: formatDateForInput(workerForm.dob) || '',
+        address: workerForm.address || '',
+        permanentAddress: workerForm.permanentAddress || '',
         contractorAgency: workerForm.workerType === 'Contractor' ? workerForm.contractorAgency : '',
-        joinDate: workerForm.joinDate,
+        joinDate: formatDateForInput(workerForm.joinDate) || '',
+        joining_date: formatDateForInput(workerForm.joinDate) || '',
         status: workerForm.status,
-        phone: workerForm.phone,
-        bankAccount: workerForm.bankAccount,
-        ifscCode: workerForm.ifscCode ? workerForm.ifscCode.toUpperCase() : '',
-        aadharNumber: workerForm.aadharNumber,
-        panNumber: workerForm.panNumber ? workerForm.panNumber.toUpperCase() : '',
+        phone: workerForm.phone ? workerForm.phone.trim() : '',
+        emergencyContact: workerForm.emergencyContact ? workerForm.emergencyContact.trim() : '',
+        salaryPolicy: workerForm.salaryPolicy || (workerForm.workerType === 'Contractor' ? 'PER_TONNAGE' : 'FIXED_ABSENT'),
+        policyRate: parseFloat(workerForm.policyRate) || 0,
+        bankAccount: workerForm.bankAccount ? workerForm.bankAccount.trim() : '',
+        ifscCode: workerForm.ifscCode ? workerForm.ifscCode.toUpperCase().trim() : '',
+        aadharNumber: workerForm.aadharNumber ? workerForm.aadharNumber.trim() : '',
+        panNumber: workerForm.panNumber ? workerForm.panNumber.toUpperCase().trim() : '',
+        aadharDoc: workerForm.aadharDoc || '',
+        panDoc: workerForm.panDoc || '',
       };
 
       const updated = await WorkerService.update(selectedWorker.id, payload);
-      setWorkers(workers.map(w => (w.id === selectedWorker.id ? { ...w, ...updated } : w)));
+      setWorkers((prev) =>
+        prev.map((w) =>
+          w.id === selectedWorker.id
+            ? {
+                ...w,
+                ...updated,
+                ...payload,
+                dob: payload.dob || updated?.dob || w.dob,
+                joinDate: payload.joinDate || updated?.joinDate || w.joinDate,
+                joining_date: payload.joining_date || updated?.joining_date || w.joining_date,
+              }
+            : w
+        )
+      );
       setIsEditModalOpen(false);
       setSelectedWorker(null);
     } catch (err) {
       alert(`Error updating worker: ${err.message || 'Server error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // Open Detailed Worker View
+  // Open Detailed Worker View (Full Page Profile)
   const handleOpenViewModal = (worker) => {
     setSelectedWorker(worker);
+    setViewingWorkerProfile(worker);
     setShowBankDetails(false);
-    setIsViewModalOpen(true);
+    setWorkerPayableSummary(null);
+    if (worker?.worker_id) {
+      PaymentService.getWorkerPayableSummary(worker.worker_id)
+        .then(res => setWorkerPayableSummary(res))
+        .catch(err => console.warn('Could not fetch worker payment summary:', err));
+    }
   };
 
   // Delete worker
@@ -362,9 +728,11 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
           {/* User Profile Card */}
           <div className="px-4 mb-3">
             <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 border border-indigo-400/20 text-indigo-200 flex items-center justify-center font-semibold text-base shrink-0">
-                A
-              </div>
+              <img
+                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+                alt="Ashmeet Admin"
+                className="w-10 h-10 rounded-lg object-cover border border-white/20 shrink-0 shadow-sm"
+              />
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-semibold text-white truncate leading-tight">Ashmeet</span>
                 <span className="text-xs text-indigo-300/70 font-normal mt-0.5">Admin</span>
@@ -401,6 +769,8 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                       onNavigateSalary();
                     } else if (item.name === 'Advance' && onNavigateAdvance) {
                       onNavigateAdvance();
+                    } else if (item.name === 'Payment Entry' && onNavigatePayments) {
+                      onNavigatePayments();
                     } else if (item.name === 'Reports' && onNavigateReports) {
                       onNavigateReports();
                     } else if (item.name === 'Administration Setting' && onNavigateAdministration) {
@@ -446,7 +816,20 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
       </aside>
 
       {/* ===================== MAIN CONTENT AREA ===================== */}
-      <div className="flex-1 flex flex-col h-full overflow-y-auto">
+      {viewingWorkerProfile ? (
+        <WorkerFullProfileView
+          worker={viewingWorkerProfile}
+          onBack={() => setViewingWorkerProfile(null)}
+          onEdit={(w) => {
+            setViewingWorkerProfile(null);
+            handleOpenEditModal(w);
+          }}
+          onWorkerUpdated={() => {
+            loadInitialData();
+          }}
+        />
+      ) : (
+        <div className="flex-1 flex flex-col h-full overflow-y-auto">
         {/* TOP HEADER */}
         <header className="px-8 lg:px-10 pt-8 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -543,12 +926,12 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
             {/* Box Header & Filter Controls */}
             <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3.5 bg-slate-50/40">
-              {/* Search Bar */}
+              {/* Search Bar (STRICT Name or ID/Code only) */}
               <div className="relative flex-1 min-w-[260px]">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Search by ID, name, designation, bank, aadhaar..."
+                  placeholder="Search by worker name or ID/code..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -578,12 +961,27 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                   className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
                 >
                   <option value="All">All Departments</option>
-                  <option value="Production">Production</option>
-                  <option value="Maintenance">Maintenance</option>
-                  <option value="Quality">Quality</option>
-                  <option value="Store">Store</option>
-                  <option value="Dispatch">Dispatch</option>
-                  <option value="Tool Room">Tool Room</option>
+                  {departmentsList.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={selectedWorkArea}
+                  onChange={(e) => {
+                    setSelectedWorkArea(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
+                >
+                  <option value="All">All Work Areas</option>
+                  {workAreasList.map((a) => (
+                    <option key={a.id} value={a.name}>
+                      {a.name}
+                    </option>
+                  ))}
                 </select>
 
                 <select
@@ -627,9 +1025,18 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                  <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 text-[11px] font-bold uppercase tracking-wider select-none">
                     <th className="py-3.5 px-4 pl-6 w-12">#</th>
-                    <th className="py-3.5 px-4">Worker</th>
+                    <th
+                      onClick={handleWorkerSort}
+                      className="py-3.5 px-4 cursor-pointer group hover:text-indigo-600 transition"
+                      title="Click to sort by Worker Name"
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        Worker
+                        {renderSortIcon()}
+                      </span>
+                    </th>
                     <th className="py-3.5 px-4">Designation</th>
                     <th className="py-3.5 px-4">Department</th>
                     <th className="py-3.5 px-4">Employee Type</th>
@@ -710,9 +1117,15 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                             {worker.designation || 'Worker'}
                           </td>
 
-                          {/* 4. Department */}
-                          <td className="py-3.5 px-4 text-slate-600 font-normal">
-                            {worker.department}
+                          {/* 4. Department & Work Area */}
+                          <td className="py-3.5 px-4 text-slate-700">
+                            <div className="font-medium text-slate-800">{worker.department || '—'}</div>
+                            {(worker.workArea || worker.work_area) && (
+                              <div className="text-[11px] text-indigo-700 font-medium flex items-center gap-1 mt-0.5">
+                                <MapPin className="w-3 h-3 text-indigo-500 shrink-0" />
+                                <span>{worker.workArea || worker.work_area}</span>
+                              </div>
+                            )}
                           </td>
 
                           {/* 5. EMPLOYEE TYPE */}
@@ -735,7 +1148,7 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
 
                           {/* 6. Join Date */}
                           <td className="py-3.5 px-4 text-slate-500 font-normal">
-                            {worker.joinDate}
+                            {formatDateDisplay(worker.joinDateFormatted || worker.joinDate || worker.joining_date)}
                           </td>
 
                           {/* 8. Status Pill */}
@@ -753,7 +1166,17 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
 
                           {/* 9. Actions */}
                           <td className="py-3.5 px-4 text-center pr-6" onClick={(e) => e.stopPropagation()}>
-                            <div className="inline-flex items-center justify-center gap-2">
+                            <div className="inline-flex items-center justify-center gap-1.5">
+                              {/* Small Sign of Pay Option */}
+                              <button
+                                type="button"
+                                onClick={() => setPayWorkerModal(worker)}
+                                className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition cursor-pointer"
+                                title={`Make Payment to ${worker.name}`}
+                              >
+                                <Banknote className="w-4 h-4" />
+                              </button>
+
                               <button
                                 type="button"
                                 onClick={() => handleOpenViewModal(worker)}
@@ -839,6 +1262,7 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
           </div>
         </main>
       </div>
+      )}
 
       {/* ===================== MODAL 1: ADD NEW WORKER (WITH ALL NEW DETAILS) ===================== */}
       {isAddModalOpen && (
@@ -879,7 +1303,7 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                       {workerForm.photo ? (
                         <img src={workerForm.photo} alt="Preview" className="w-full h-full object-cover" />
                       ) : (
-                        <Camera className="w-8 h-8 text-slate-300" />
+                        <User className="w-10 h-10 text-slate-300 stroke-[1.5]" />
                       )}
                     </div>
                     <button
@@ -899,25 +1323,30 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                     />
                   </div>
 
-                  {/* Photo Instructions & Presets */}
+                  {/* Photo Instructions & Status */}
                   <div className="flex-1 text-center sm:text-left">
                     <span className="text-xs font-semibold text-slate-700 block">Worker Profile Photograph</span>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Upload worker picture (JPG/PNG). Or choose one of the quick avatars:
+                      {workerForm.photo ? 'Real worker photo selected' : 'No photo uploaded. Upload an actual worker picture (JPG/PNG).'}
                     </p>
-                    <div className="flex items-center gap-1.5 mt-2 justify-center sm:justify-start">
-                      {SAMPLE_AVATARS.slice(0, 5).map((av, idx) => (
+                    <div className="flex items-center gap-2 mt-2 justify-center sm:justify-start">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 rounded-lg text-xs font-semibold shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>{workerForm.photo ? 'Change Photo' : 'Upload Worker Photo'}</span>
+                      </button>
+                      {workerForm.photo && (
                         <button
-                          key={idx}
                           type="button"
-                          onClick={() => setWorkerForm({ ...workerForm, photo: av })}
-                          className={`w-7 h-7 rounded-full overflow-hidden border-2 transition cursor-pointer ${
-                            workerForm.photo === av ? 'border-indigo-600 ring-2 ring-indigo-300' : 'border-transparent opacity-70 hover:opacity-100'
-                          }`}
+                          onClick={() => setWorkerForm((prev) => ({ ...prev, photo: '' }))}
+                          className="px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg font-medium transition cursor-pointer"
                         >
-                          <img src={av} alt="sample" className="w-full h-full object-cover" />
+                          Remove
                         </button>
-                      ))}
+                      )}
                     </div>
                   </div>
                 </div>
@@ -925,15 +1354,20 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                 {/* ID, Full Name, Designation, Gender, DOB */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-3.5">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Worker ID <span className="text-rose-500">*</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Worker ID <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                        Auto-generated
+                      </span>
+                    </div>
                     <input
                       type="text"
                       required
                       value={workerForm.workerId}
                       onChange={(e) => setWorkerForm({ ...workerForm, workerId: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs sm:text-sm font-mono font-semibold text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
                       placeholder="e.g. W053"
                     />
                   </div>
@@ -945,24 +1379,23 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                       type="text"
                       required
                       value={workerForm.name}
-                      onChange={(e) => setWorkerForm({ ...workerForm, name: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g. Ramesh Chandra"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setWorkerForm({ ...workerForm, name: val });
+                        if (/\d/.test(val)) {
+                          setFormErrors((prev) => ({ ...prev, name: 'Numeric values are not allowed in name.' }));
+                        } else if (formErrors.name) {
+                          setFormErrors((prev) => ({ ...prev, name: null }));
+                        }
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.name ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
+                      placeholder="e.g. Rahul Kumar"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Designation / Role <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={workerForm.designation}
-                      onChange={(e) => setWorkerForm({ ...workerForm, designation: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g. CNC Operator / Lathe Master"
-                    />
+                    {formErrors.name && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.name}</p>
+                    )}
                   </div>
 
                   <div>
@@ -974,42 +1407,151 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                     >
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
-                      <option value="Other">Other</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Date of Birth (DOB)</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">Date of Birth (DOB)</label>
+                      {calculateAgeFromDOB(workerForm.dob) !== null && (
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                          Age: {calculateAgeFromDOB(workerForm.dob)} yrs
+                        </span>
+                      )}
+                    </div>
                     <input
-                      type="text"
+                      type="date"
+                      max={new Date().toISOString().split('T')[0]}
                       value={workerForm.dob}
-                      onChange={(e) => setWorkerForm({ ...workerForm, dob: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g. 15 Aug 1992"
+                      onChange={(e) => {
+                        setWorkerForm({ ...workerForm, dob: e.target.value });
+                        if (formErrors.dob) setFormErrors({ ...formErrors, dob: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.dob ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 cursor-pointer`}
                     />
+                    {formErrors.dob && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.dob}</p>
+                    )}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Phone Number <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="text"
+                      required
+                      inputMode="numeric"
+                      maxLength={10}
+                      placeholder="e.g. 9876543210"
                       value={workerForm.phone}
-                      onChange={(e) => setWorkerForm({ ...workerForm, phone: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
-                      placeholder="+91 98765 XXXXX"
+                      onChange={(e) => {
+                        const clean = sanitizeNumericInput(e.target.value, 10);
+                        setWorkerForm({ ...workerForm, phone: clean });
+                        if (formErrors.phone) setFormErrors({ ...formErrors, phone: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.phone ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
                     />
+                    {formErrors.phone && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.phone}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Emergency Contact Number</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={10}
+                      placeholder="e.g. 9812345678"
+                      value={workerForm.emergencyContact}
+                      onChange={(e) => {
+                        const clean = sanitizeNumericInput(e.target.value, 10);
+                        setWorkerForm({ ...workerForm, emergencyContact: clean });
+                        if (formErrors.emergencyContact) setFormErrors({ ...formErrors, emergencyContact: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.emergencyContact ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
+                    />
+                    {formErrors.emergencyContact && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.emergencyContact}</p>
+                    )}
                   </div>
                 </div>
 
-                <div className="mt-3.5">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Residential Address</label>
-                  <textarea
-                    rows={2}
-                    value={workerForm.address}
-                    onChange={(e) => setWorkerForm({ ...workerForm, address: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
-                    placeholder="Enter complete permanent / local residential address..."
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Current Residential Address <span className="text-rose-500">*</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      required
+                      value={workerForm.address}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setWorkerForm((prev) => ({
+                          ...prev,
+                          address: val,
+                          ...(sameAsResidential ? { permanentAddress: val } : {}),
+                        }));
+                        if (formErrors.address) setFormErrors({ ...formErrors, address: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.address ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
+                      placeholder="Current local address in Ludhiana / Punjab..."
+                    />
+                    {formErrors.address && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.address}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Permanent Residential Address</label>
+                    <textarea
+                      rows={2}
+                      value={workerForm.permanentAddress}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setWorkerForm((prev) => ({ ...prev, permanentAddress: val }));
+                        if (sameAsResidential && val !== workerForm.address) {
+                          setSameAsResidential(false);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
+                      placeholder="Permanent hometown village/city address..."
+                    />
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600 hover:text-slate-900">
+                        <input
+                          type="checkbox"
+                          checked={sameAsResidential}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setSameAsResidential(checked);
+                            if (checked) {
+                              setWorkerForm((prev) => ({
+                                ...prev,
+                                permanentAddress: prev.address || '',
+                              }));
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                        />
+                        <span className="font-medium">Same as Residential Address</span>
+                      </label>
+                      {sameAsResidential && (
+                        <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          Synced
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1026,7 +1568,13 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => setWorkerForm({ ...workerForm, workerType: 'Permanent', contractorAgency: '' })}
+                      onClick={() => setWorkerForm({
+                        ...workerForm,
+                        workerType: 'Permanent',
+                        contractorAgency: '',
+                        salaryPolicy: 'FIXED_ABSENT',
+                        policyRate: workerForm.policyRate || '15000'
+                      })}
                       className={`flex items-center gap-3 p-3 rounded-xl border text-left transition cursor-pointer ${
                         workerForm.workerType === 'Permanent'
                           ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20 text-indigo-900'
@@ -1046,7 +1594,12 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
 
                     <button
                       type="button"
-                      onClick={() => setWorkerForm({ ...workerForm, workerType: 'Contractor' })}
+                      onClick={() => setWorkerForm({
+                        ...workerForm,
+                        workerType: 'Contractor',
+                        salaryPolicy: 'PER_TONNAGE',
+                        policyRate: workerForm.policyRate || '500'
+                      })}
                       className={`flex items-center gap-3 p-3 rounded-xl border text-left transition cursor-pointer ${
                         workerForm.workerType === 'Contractor'
                           ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 text-amber-900'
@@ -1069,35 +1622,180 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                 {workerForm.workerType === 'Contractor' && (
                   <div className="mt-3 bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 animate-in fade-in duration-150">
                     <label className="block text-xs font-semibold text-amber-900 mb-1">
-                      Contractor / Agency Name <span className="text-rose-500">*</span>
+                      Contractor Agency <span className="text-rose-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      required
-                      value={workerForm.contractorAgency}
-                      onChange={(e) => setWorkerForm({ ...workerForm, contractorAgency: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                      placeholder="e.g. Apex Manpower Services"
-                    />
+                    {contractorsList.length === 0 ? (
+                      <div className="p-3 bg-amber-100 rounded-lg text-amber-900 text-xs flex items-center justify-between">
+                        <span>No contractors registered yet. Please add a contractor first in Contractor management.</span>
+                        {onNavigateContractor && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddModalOpen(false);
+                              onNavigateContractor();
+                            }}
+                            className="font-bold underline text-amber-900 hover:text-black ml-2 cursor-pointer"
+                          >
+                            Add Contractor
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <select
+                        required
+                        value={workerForm.contractorAgency}
+                        onChange={(e) => setWorkerForm({ ...workerForm, contractorAgency: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      >
+                        <option value="">-- Select Registered Contractor --</option>
+                        {contractorsList.map((c) => (
+                          <option key={c.id || c.contractor_id} value={c.name}>
+                            {c.name} {c.contractor_id ? `(${c.contractor_id})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-3.5">
+                {departmentsList.length === 0 ? (
+                  <div className="mt-3 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center justify-between">
+                    <div>
+                      <span className="font-bold block">No departments created yet</span>
+                      <span className="text-[11px] text-rose-600">You must first create a department and designation before registering workers.</span>
+                    </div>
+                    {onNavigateDepartment && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddModalOpen(false);
+                          onNavigateDepartment();
+                        }}
+                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold cursor-pointer shrink-0 ml-3"
+                      >
+                        Create Department
+                      </button>
+                    )}
+                  </div>
+                ) : null}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-3.5">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Department</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Department <span className="text-rose-500">*</span>
+                    </label>
                     <select
+                      required
                       value={workerForm.department}
-                      onChange={(e) => setWorkerForm({ ...workerForm, department: e.target.value })}
+                      onChange={(e) => {
+                        const newDept = e.target.value;
+                        const deptObj = departmentsList.find(
+                          (d) => d.name === newDept || String(d.id) === String(newDept)
+                        );
+                        const matchingDesigs = designationsList.filter((d) => {
+                          const matchName = (d.department_name || d.departmentName) === newDept;
+                          const matchId = deptObj && (String(d.department) === String(deptObj.id) || String(d.departmentId) === String(deptObj.id));
+                          return matchName || matchId;
+                        });
+                        setWorkerForm({
+                          ...workerForm,
+                          department: newDept,
+                          designation: matchingDesigs.length > 0 ? matchingDesigs[0].title : '',
+                        });
+                      }}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
                     >
-                      <option value="Production">Production</option>
-                      <option value="Maintenance">Maintenance</option>
-                      <option value="Quality">Quality</option>
-                      <option value="Store">Store</option>
-                      <option value="Dispatch">Dispatch</option>
-                      <option value="Tool Room">Tool Room</option>
+                      <option value="">-- Select Department --</option>
+                      {departmentsList.map((d) => (
+                        <option key={d.id} value={d.name}>
+                          {d.name} {d.code ? `(${d.code})` : ''}
+                        </option>
+                      ))}
                     </select>
                   </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Designation <span className="text-rose-500">*</span>
+                    </label>
+                    {availableDesignations.length === 0 ? (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] flex items-center justify-between">
+                        <span>No designations under this dept.</span>
+                        {onNavigateDepartment && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditModalOpen(false);
+                              onNavigateDepartment();
+                            }}
+                            className="font-bold underline text-amber-900 ml-1 cursor-pointer shrink-0"
+                          >
+                            Add Designation
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <select
+                        required
+                        value={workerForm.designation}
+                        onChange={(e) => {
+                          setWorkerForm({ ...workerForm, designation: e.target.value });
+                          if (formErrors.designation) setFormErrors({ ...formErrors, designation: null });
+                        }}
+                        className={`w-full px-3 py-2 bg-slate-50 border ${
+                          formErrors.designation ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                        } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
+                      >
+                        <option value="">-- Select Designation --</option>
+                        {availableDesignations.map((d) => (
+                          <option key={d.id} value={d.title}>
+                            {d.title} {d.code ? `(${d.code})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {formErrors.designation && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.designation}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Work Area <span className="text-rose-500">*</span>
+                    </label>
+                    {availableWorkAreas.length === 0 ? (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] flex items-center justify-between">
+                        <span>No work areas available.</span>
+                        {onNavigateDepartment && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddModalOpen(false);
+                              onNavigateDepartment();
+                            }}
+                            className="font-bold underline text-amber-900 ml-1 cursor-pointer shrink-0"
+                          >
+                            Add Work Area
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <select
+                        required
+                        value={workerForm.workArea}
+                        onChange={(e) => setWorkerForm({ ...workerForm, workArea: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">-- Select Work Area --</option>
+                        {availableWorkAreas.map((a) => (
+                          <option key={a.id} value={a.name}>
+                            {a.name} {a.code ? `[${a.code}]` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
                     <select
@@ -1109,24 +1807,106 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                       <option value="Inactive">Inactive</option>
                     </select>
                   </div>
+
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Join Date</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Join Date <span className="text-rose-500">*</span>
+                    </label>
                     <input
-                      type="text"
+                      type="date"
+                      required
                       value={workerForm.joinDate}
-                      onChange={(e) => setWorkerForm({ ...workerForm, joinDate: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g. 15 Oct 2024"
+                      onChange={(e) => {
+                        setWorkerForm({ ...workerForm, joinDate: e.target.value });
+                        if (formErrors.joinDate) setFormErrors({ ...formErrors, joinDate: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.joinDate ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
+                    />
+                    {formErrors.joinDate && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.joinDate}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: SALARY POLICY CONFIGURATION */}
+              <div className="pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Banknote className="w-3.5 h-3.5" /> 3. Salary Policy &amp; Wage Model <span className="text-rose-500">*</span>
+                  </h4>
+                  <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full font-semibold border border-indigo-100">
+                    {workerForm.workerType === 'Permanent' ? 'Staff Policy Selection' : 'Contractor Work Model'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mb-3">
+                  Choose the compensation formula that dictates monthly payroll calculations:
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {(workerForm.workerType === 'Permanent' ? PERMANENT_POLICIES : CONTRACTOR_POLICIES).map((policy) => {
+                    const isSelected = workerForm.salaryPolicy === policy.id;
+                    return (
+                      <div
+                        key={policy.id}
+                        onClick={() => setWorkerForm({ ...workerForm, salaryPolicy: policy.id })}
+                        className={`p-3 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-indigo-50/80 border-indigo-600 ring-2 ring-indigo-500/20'
+                            : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/80'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className={`text-xs font-bold ${isSelected ? 'text-indigo-950' : 'text-slate-800'}`}>
+                            {policy.title}
+                          </span>
+                          <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
+                            isSelected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white'
+                          }`}>
+                            {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-500 mt-1 leading-snug">{policy.desc}</p>
+                        <div className="mt-2 text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">
+                          Unit: {policy.rateUnit}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3.5 p-3 rounded-xl bg-slate-50/80 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800">
+                      Policy Rate / Wage Amount (₹) <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[11px] text-slate-400">
+                      Default is 0 — set custom rate as required
+                    </span>
+                  </div>
+                  <div className="relative w-full sm:w-48">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">₹</span>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step="any"
+                      value={workerForm.policyRate}
+                      onChange={(e) => setWorkerForm({ ...workerForm, policyRate: e.target.value })}
+                      className="w-full pl-7 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                      placeholder="0"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* SECTION 3: SALARY PAYMENT BANK DETAILS (OPTIONAL) */}
+              {/* SECTION 4: SALARY PAYMENT BANK DETAILS (OPTIONAL) */}
               <div className="pt-4 border-t border-slate-100">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Landmark className="w-3.5 h-3.5" /> 3. Salary Payment Bank Details
+                    <Landmark className="w-3.5 h-3.5" /> 4. Salary Payment Bank Details
                   </h4>
                   <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
                     Optional for direct transfer
@@ -1140,11 +1920,21 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                     </label>
                     <input
                       type="text"
+                      inputMode="numeric"
+                      maxLength={18}
                       value={workerForm.bankAccount}
-                      onChange={(e) => setWorkerForm({ ...workerForm, bankAccount: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-mono focus:bg-white focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g. 50100234918234"
+                      onChange={(e) => {
+                        const clean = sanitizeNumericInput(e.target.value, 18);
+                        setWorkerForm({ ...workerForm, bankAccount: clean });
+                        if (formErrors.bankAccount) setFormErrors({ ...formErrors, bankAccount: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.bankAccount ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 font-mono focus:bg-white focus:outline-none focus:border-indigo-500`}
                     />
+                    {formErrors.bankAccount && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.bankAccount}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -1152,20 +1942,29 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                     </label>
                     <input
                       type="text"
+                      maxLength={11}
                       value={workerForm.ifscCode}
-                      onChange={(e) => setWorkerForm({ ...workerForm, ifscCode: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-mono uppercase focus:bg-white focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g. HDFC0001234"
+                      onChange={(e) => {
+                        const clean = sanitizeAlphaNumericUpper(e.target.value, 11);
+                        setWorkerForm({ ...workerForm, ifscCode: clean });
+                        if (formErrors.ifscCode) setFormErrors({ ...formErrors, ifscCode: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.ifscCode ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 font-mono uppercase focus:bg-white focus:outline-none focus:border-indigo-500`}
                     />
+                    {formErrors.ifscCode && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.ifscCode}</p>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* SECTION 4: GOVERNMENT STATUTORY & KYC (AADHAAR & PAN - OPTIONAL) */}
+              {/* SECTION 5: GOVERNMENT STATUTORY & KYC (AADHAAR & PAN - OPTIONAL) */}
               <div className="pt-4 border-t border-slate-100">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <CreditCard className="w-3.5 h-3.5" /> 4. Identification &amp; Statutory KYC
+                    <CreditCard className="w-3.5 h-3.5" /> 5. Identification &amp; Statutory KYC
                   </h4>
                   <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
                     Optional
@@ -1179,11 +1978,72 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                     </label>
                     <input
                       type="text"
+                      inputMode="numeric"
+                      maxLength={12}
                       value={workerForm.aadharNumber}
-                      onChange={(e) => setWorkerForm({ ...workerForm, aadharNumber: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-mono focus:bg-white focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g. 8392 4820 1928"
+                      onChange={(e) => {
+                        const clean = sanitizeNumericInput(e.target.value, 12);
+                        setWorkerForm({ ...workerForm, aadharNumber: clean });
+                        if (formErrors.aadharNumber) setFormErrors({ ...formErrors, aadharNumber: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.aadharNumber ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 font-mono focus:bg-white focus:outline-none focus:border-indigo-500`}
                     />
+                    {formErrors.aadharNumber && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.aadharNumber}</p>
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Upload Aadhaar Card (Image/PDF)
+                      </label>
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" /> Admin Only
+                      </span>
+                    </div>
+                    <input
+                      ref={aadharFileInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleFileUpload(e, 'aadharDoc')}
+                      className="hidden"
+                    />
+                    {workerForm.aadharDoc ? (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-2 truncate text-xs text-emerald-800 font-medium">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="truncate">Aadhaar Card Attached</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setAdminDocPreview({ title: 'Aadhaar Card Document', data: workerForm.aadharDoc })}
+                            className="px-2.5 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition cursor-pointer"
+                          >
+                            Preview
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWorkerForm({ ...workerForm, aadharDoc: '' })}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                            title="Remove Document"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => aadharFileInputRef.current?.click()}
+                        className="w-full px-3 py-2 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-600 hover:bg-slate-100 hover:border-indigo-400 flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Select Aadhaar Card File</span>
+                      </button>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -1191,11 +2051,71 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                     </label>
                     <input
                       type="text"
+                      maxLength={10}
                       value={workerForm.panNumber}
-                      onChange={(e) => setWorkerForm({ ...workerForm, panNumber: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-mono uppercase focus:bg-white focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g. ABCDE1234F"
+                      onChange={(e) => {
+                        const clean = sanitizeAlphaNumericUpper(e.target.value, 10);
+                        setWorkerForm({ ...workerForm, panNumber: clean });
+                        if (formErrors.panNumber) setFormErrors({ ...formErrors, panNumber: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.panNumber ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 font-mono uppercase focus:bg-white focus:outline-none focus:border-indigo-500`}
                     />
+                    {formErrors.panNumber && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.panNumber}</p>
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Upload PAN Card (Image/PDF)
+                      </label>
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" /> Admin Only
+                      </span>
+                    </div>
+                    <input
+                      ref={panFileInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleFileUpload(e, 'panDoc')}
+                      className="hidden"
+                    />
+                    {workerForm.panDoc ? (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-2 truncate text-xs text-emerald-800 font-medium">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="truncate">PAN Card Attached</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setAdminDocPreview({ title: 'PAN Card Document', data: workerForm.panDoc })}
+                            className="px-2.5 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition cursor-pointer"
+                          >
+                            Preview
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWorkerForm({ ...workerForm, panDoc: '' })}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                            title="Remove Document"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => panFileInputRef.current?.click()}
+                        className="w-full px-3 py-2 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-600 hover:bg-slate-100 hover:border-indigo-400 flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Select PAN Card File</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1211,9 +2131,12 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition cursor-pointer"
+                  disabled={isSubmitting}
+                  className={`px-5 py-2 ${
+                    isSubmitting ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer'
+                  } text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition`}
                 >
-                  Save Worker Profile
+                  {isSubmitting ? 'Saving Profile...' : 'Save Worker Profile'}
                 </button>
               </div>
             </form>
@@ -1259,28 +2182,26 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 text-white rounded-lg shadow-sm cursor-pointer"
-                    title="Change Photo"
+                    title="Upload Photo"
                   >
                     <Upload className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 <div className="flex-1 text-center sm:text-left">
-                  <span className="text-xs font-semibold text-slate-700 block">Change Worker Photo</span>
-                  <div className="flex items-center gap-1.5 mt-2 justify-center sm:justify-start">
-                    {SAMPLE_AVATARS.slice(0, 5).map((av, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setWorkerForm({ ...workerForm, photo: av })}
-                        className={`w-7 h-7 rounded-full overflow-hidden border-2 transition cursor-pointer ${
-                          workerForm.photo === av ? 'border-indigo-600 ring-2 ring-indigo-300' : 'border-transparent opacity-70 hover:opacity-100'
-                        }`}
-                      >
-                        <img src={av} alt="sample" className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
+                  <span className="text-xs font-semibold text-slate-700 block">Worker Photo</span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Upload official worker picture. If no photo is uploaded, profile shows no avatar.
+                  </p>
+                  {workerForm.photo && (
+                    <button
+                      type="button"
+                      onClick={() => setWorkerForm({ ...workerForm, photo: '' })}
+                      className="mt-2 text-xs text-rose-600 hover:text-rose-700 font-semibold inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Remove Photo
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1292,28 +2213,34 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                     required
                     value={workerForm.workerId}
                     onChange={(e) => setWorkerForm({ ...workerForm, workerId: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Full Name <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={workerForm.name}
-                    onChange={(e) => setWorkerForm({ ...workerForm, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const clean = sanitizeNameInput(val);
+                      setWorkerForm({ ...workerForm, name: clean });
+                      if (/\d/.test(val)) {
+                        setFormErrors((prev) => ({ ...prev, name: 'Numeric values are not allowed in name.' }));
+                      } else if (formErrors.name) {
+                        setFormErrors((prev) => ({ ...prev, name: null }));
+                      }
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border ${
+                      formErrors.name ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                    } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Designation</label>
-                  <input
-                    type="text"
-                    required
-                    value={workerForm.designation}
-                    onChange={(e) => setWorkerForm({ ...workerForm, designation: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
-                  />
+                  {formErrors.name && (
+                    <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.name}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Gender</label>
@@ -1324,37 +2251,142 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                   >
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
-                    <option value="Other">Other</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Date of Birth (DOB)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">Date of Birth (DOB)</label>
+                    {calculateAgeFromDOB(workerForm.dob) !== null && (
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                        Age: {calculateAgeFromDOB(workerForm.dob)} yrs
+                      </span>
+                    )}
+                  </div>
                   <input
-                    type="text"
+                    type="date"
+                    max={new Date().toISOString().split('T')[0]}
                     value={workerForm.dob}
-                    onChange={(e) => setWorkerForm({ ...workerForm, dob: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
+                    onChange={(e) => {
+                      setWorkerForm({ ...workerForm, dob: e.target.value });
+                      if (formErrors.dob) setFormErrors({ ...formErrors, dob: null });
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border ${
+                      formErrors.dob ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                    } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
                   />
+                  {formErrors.dob && (
+                    <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.dob}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Phone Number <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    maxLength={10}
                     value={workerForm.phone}
-                    onChange={(e) => setWorkerForm({ ...workerForm, phone: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
+                    onChange={(e) => {
+                      const clean = sanitizeNumericInput(e.target.value, 10);
+                      setWorkerForm({ ...workerForm, phone: clean });
+                      if (formErrors.phone) setFormErrors({ ...formErrors, phone: null });
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border ${
+                      formErrors.phone ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                    } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
                   />
+                  {formErrors.phone && (
+                    <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.phone}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Emergency Contact Number</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={workerForm.emergencyContact}
+                    onChange={(e) => {
+                      const clean = sanitizeNumericInput(e.target.value, 10);
+                      setWorkerForm({ ...workerForm, emergencyContact: clean });
+                      if (formErrors.emergencyContact) setFormErrors({ ...formErrors, emergencyContact: null });
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border ${
+                      formErrors.emergencyContact ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                    } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
+                  />
+                  {formErrors.emergencyContact && (
+                    <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.emergencyContact}</p>
+                  )}
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Residential Address</label>
-                <textarea
-                  rows={2}
-                  value={workerForm.address}
-                  onChange={(e) => setWorkerForm({ ...workerForm, address: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Current Residential Address <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={workerForm.address}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setWorkerForm((prev) => ({
+                        ...prev,
+                        address: val,
+                        ...(sameAsResidential ? { permanentAddress: val } : {}),
+                      }));
+                      if (formErrors.address) setFormErrors({ ...formErrors, address: null });
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border ${
+                      formErrors.address ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                    } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
+                  />
+                  {formErrors.address && (
+                    <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.address}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Permanent Residential Address</label>
+                  <textarea
+                    rows={2}
+                    value={workerForm.permanentAddress}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setWorkerForm((prev) => ({ ...prev, permanentAddress: val }));
+                      if (sameAsResidential && val !== workerForm.address) {
+                        setSameAsResidential(false);
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
+                  />
+                  <div className="mt-1.5 flex items-center justify-between">
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600 hover:text-slate-900">
+                      <input
+                        type="checkbox"
+                        checked={sameAsResidential}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setSameAsResidential(checked);
+                          if (checked) {
+                            setWorkerForm((prev) => ({
+                              ...prev,
+                              permanentAddress: prev.address || '',
+                            }));
+                          }
+                        }}
+                        className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <span className="font-medium">Same as Residential Address</span>
+                    </label>
+                    {sameAsResidential && (
+                      <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Synced
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Employee Type */}
@@ -1404,33 +2436,148 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
 
                 {workerForm.workerType === 'Contractor' && (
                   <div className="mt-3 bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 animate-in fade-in duration-150">
-                    <label className="block text-xs font-semibold text-amber-900 mb-1">Contractor / Agency Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={workerForm.contractorAgency}
-                      onChange={(e) => setWorkerForm({ ...workerForm, contractorAgency: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                    />
+                    <label className="block text-xs font-semibold text-amber-900 mb-1">
+                      Contractor Agency <span className="text-rose-500">*</span>
+                    </label>
+                    {contractorsList.length === 0 ? (
+                      <div className="p-3 bg-amber-100 rounded-lg text-amber-900 text-xs">
+                        No registered contractors found. Please create a contractor in Contractor management.
+                      </div>
+                    ) : (
+                      <select
+                        required
+                        value={workerForm.contractorAgency}
+                        onChange={(e) => setWorkerForm({ ...workerForm, contractorAgency: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      >
+                        <option value="">-- Select Registered Contractor --</option>
+                        {contractorsList.map((c) => (
+                          <option key={c.id || c.contractor_id} value={c.name}>
+                            {c.name} {c.contractor_id ? `(${c.contractor_id})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-3.5">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Department</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Department <span className="text-rose-500">*</span>
+                    </label>
                     <select
+                      required
                       value={workerForm.department}
-                      onChange={(e) => setWorkerForm({ ...workerForm, department: e.target.value })}
+                      onChange={(e) => {
+                        const newDept = e.target.value;
+                        const deptObj = departmentsList.find(
+                          (d) => d.name === newDept || String(d.id) === String(newDept)
+                        );
+                        const matchingDesigs = designationsList.filter((d) => {
+                          const matchName = (d.department_name || d.departmentName) === newDept;
+                          const matchId = deptObj && (String(d.department) === String(deptObj.id) || String(d.departmentId) === String(deptObj.id));
+                          return matchName || matchId;
+                        });
+                        setWorkerForm({
+                          ...workerForm,
+                          department: newDept,
+                          designation: matchingDesigs.length > 0 ? matchingDesigs[0].title : '',
+                        });
+                      }}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
                     >
-                      <option value="Production">Production</option>
-                      <option value="Maintenance">Maintenance</option>
-                      <option value="Quality">Quality</option>
-                      <option value="Store">Store</option>
-                      <option value="Dispatch">Dispatch</option>
-                      <option value="Tool Room">Tool Room</option>
+                      <option value="">-- Select Department --</option>
+                      {departmentsList.map((d) => (
+                        <option key={d.id} value={d.name}>
+                          {d.name} {d.code ? `(${d.code})` : ''}
+                        </option>
+                      ))}
                     </select>
                   </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Designation <span className="text-rose-500">*</span>
+                    </label>
+                    {availableDesignations.length === 0 ? (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] flex items-center justify-between">
+                        <span>No designations under this dept.</span>
+                        {onNavigateDepartment && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditModalOpen(false);
+                              onNavigateDepartment();
+                            }}
+                            className="font-bold underline text-amber-900 ml-1 cursor-pointer shrink-0"
+                          >
+                            Add Designation
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <select
+                        required
+                        value={workerForm.designation}
+                        onChange={(e) => {
+                          setWorkerForm({ ...workerForm, designation: e.target.value });
+                          if (formErrors.designation) setFormErrors({ ...formErrors, designation: null });
+                        }}
+                        className={`w-full px-3 py-2 bg-slate-50 border ${
+                          formErrors.designation ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                        } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
+                      >
+                        <option value="">-- Select Designation --</option>
+                        {availableDesignations.map((d) => (
+                          <option key={d.id} value={d.title}>
+                            {d.title} {d.code ? `(${d.code})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {formErrors.designation && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.designation}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Work Area <span className="text-rose-500">*</span>
+                    </label>
+                    {availableWorkAreas.length === 0 ? (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] flex items-center justify-between">
+                        <span>No work areas available.</span>
+                        {onNavigateDepartment && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddModalOpen(false);
+                              onNavigateDepartment();
+                            }}
+                            className="font-bold underline text-amber-900 ml-1 cursor-pointer shrink-0"
+                          >
+                            Add Work Area
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <select
+                        required
+                        value={workerForm.workArea}
+                        onChange={(e) => setWorkerForm({ ...workerForm, workArea: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">-- Select Work Area --</option>
+                        {availableWorkAreas.map((a) => (
+                          <option key={a.id} value={a.name}>
+                            {a.name} {a.code ? `[${a.code}]` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
                     <select
@@ -1442,13 +2589,93 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                       <option value="Inactive">Inactive</option>
                     </select>
                   </div>
+
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Join Date</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Join Date <span className="text-rose-500">*</span>
+                    </label>
                     <input
-                      type="text"
+                      type="date"
+                      required
                       value={workerForm.joinDate}
-                      onChange={(e) => setWorkerForm({ ...workerForm, joinDate: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500"
+                      onChange={(e) => {
+                        setWorkerForm({ ...workerForm, joinDate: e.target.value });
+                        if (formErrors.joinDate) setFormErrors({ ...formErrors, joinDate: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.joinDate ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500`}
+                    />
+                    {formErrors.joinDate && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.joinDate}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Salary Policy & Rate Configuration */}
+              <div className="pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Banknote className="w-3.5 h-3.5" /> Salary Policy &amp; Wage Model <span className="text-rose-500">*</span>
+                  </h4>
+                  <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full font-semibold border border-indigo-100">
+                    {workerForm.workerType === 'Permanent' ? 'Staff Policy' : 'Contractor Model'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {(workerForm.workerType === 'Permanent' ? PERMANENT_POLICIES : CONTRACTOR_POLICIES).map((policy) => {
+                    const isSelected = workerForm.salaryPolicy === policy.id;
+                    return (
+                      <div
+                        key={policy.id}
+                        onClick={() => setWorkerForm({ ...workerForm, salaryPolicy: policy.id })}
+                        className={`p-3 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-indigo-50/80 border-indigo-600 ring-2 ring-indigo-500/20'
+                            : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/80'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className={`text-xs font-bold ${isSelected ? 'text-indigo-950' : 'text-slate-800'}`}>
+                            {policy.title}
+                          </span>
+                          <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
+                            isSelected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white'
+                          }`}>
+                            {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-500 mt-1 leading-snug">{policy.desc}</p>
+                        <div className="mt-2 text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">
+                          Unit: {policy.rateUnit}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3.5 p-3 rounded-xl bg-slate-50/80 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800">
+                      Policy Rate / Wage Amount (₹) <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[11px] text-slate-400">
+                      Default is 0 — set custom rate as required
+                    </span>
+                  </div>
+                  <div className="relative w-full sm:w-48">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">₹</span>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step="any"
+                      value={workerForm.policyRate}
+                      onChange={(e) => setWorkerForm({ ...workerForm, policyRate: e.target.value })}
+                      className="w-full pl-7 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                      placeholder="0"
                     />
                   </div>
                 </div>
@@ -1464,37 +2691,167 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Bank Account</label>
                     <input
                       type="text"
+                      inputMode="numeric"
+                      maxLength={18}
                       value={workerForm.bankAccount}
-                      onChange={(e) => setWorkerForm({ ...workerForm, bankAccount: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-mono focus:bg-white focus:outline-none focus:border-indigo-500"
+                      onChange={(e) => {
+                        const clean = sanitizeNumericInput(e.target.value, 18);
+                        setWorkerForm({ ...workerForm, bankAccount: clean });
+                        if (formErrors.bankAccount) setFormErrors({ ...formErrors, bankAccount: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.bankAccount ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 font-mono focus:bg-white focus:outline-none focus:border-indigo-500`}
                     />
+                    {formErrors.bankAccount && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.bankAccount}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">IFSC Code</label>
                     <input
                       type="text"
+                      maxLength={11}
                       value={workerForm.ifscCode}
-                      onChange={(e) => setWorkerForm({ ...workerForm, ifscCode: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-mono uppercase focus:bg-white focus:outline-none focus:border-indigo-500"
+                      onChange={(e) => {
+                        const clean = sanitizeAlphaNumericUpper(e.target.value, 11);
+                        setWorkerForm({ ...workerForm, ifscCode: clean });
+                        if (formErrors.ifscCode) setFormErrors({ ...formErrors, ifscCode: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.ifscCode ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 font-mono uppercase focus:bg-white focus:outline-none focus:border-indigo-500`}
                     />
+                    {formErrors.ifscCode && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.ifscCode}</p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Aadhaar Card</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Aadhaar Card Number</label>
                     <input
                       type="text"
+                      inputMode="numeric"
+                      maxLength={12}
                       value={workerForm.aadharNumber}
-                      onChange={(e) => setWorkerForm({ ...workerForm, aadharNumber: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-mono focus:bg-white focus:outline-none focus:border-indigo-500"
+                      onChange={(e) => {
+                        const clean = sanitizeNumericInput(e.target.value, 12);
+                        setWorkerForm({ ...workerForm, aadharNumber: clean });
+                        if (formErrors.aadharNumber) setFormErrors({ ...formErrors, aadharNumber: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.aadharNumber ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 font-mono focus:bg-white focus:outline-none focus:border-indigo-500`}
                     />
+                    {formErrors.aadharNumber && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.aadharNumber}</p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">PAN Card</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Upload Aadhaar Card (Image/PDF)
+                      </label>
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" /> Admin Only
+                      </span>
+                    </div>
+                    {workerForm.aadharDoc ? (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-2 truncate text-xs text-emerald-800 font-medium">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="truncate">Aadhaar Card Attached</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setAdminDocPreview({ title: 'Aadhaar Card Document', data: workerForm.aadharDoc })}
+                            className="px-2.5 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition cursor-pointer"
+                          >
+                            Preview
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWorkerForm({ ...workerForm, aadharDoc: '' })}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                            title="Remove Document"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => aadharFileInputRef.current?.click()}
+                        className="w-full px-3 py-2 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-600 hover:bg-slate-100 hover:border-indigo-400 flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Select Aadhaar Card File</span>
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">PAN Card Number</label>
                     <input
                       type="text"
+                      maxLength={10}
                       value={workerForm.panNumber}
-                      onChange={(e) => setWorkerForm({ ...workerForm, panNumber: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-mono uppercase focus:bg-white focus:outline-none focus:border-indigo-500"
+                      onChange={(e) => {
+                        const clean = sanitizeAlphaNumericUpper(e.target.value, 10);
+                        setWorkerForm({ ...workerForm, panNumber: clean });
+                        if (formErrors.panNumber) setFormErrors({ ...formErrors, panNumber: null });
+                      }}
+                      className={`w-full px-3 py-2 bg-slate-50 border ${
+                        formErrors.panNumber ? 'border-red-500 ring-2 ring-red-500/20' : 'border-slate-200'
+                      } rounded-xl text-xs sm:text-sm text-slate-800 font-mono uppercase focus:bg-white focus:outline-none focus:border-indigo-500`}
                     />
+                    {formErrors.panNumber && (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{formErrors.panNumber}</p>
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Upload PAN Card (Image/PDF)
+                      </label>
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" /> Admin Only
+                      </span>
+                    </div>
+                    {workerForm.panDoc ? (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-2 truncate text-xs text-emerald-800 font-medium">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="truncate">PAN Card Attached</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setAdminDocPreview({ title: 'PAN Card Document', data: workerForm.panDoc })}
+                            className="px-2.5 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition cursor-pointer"
+                          >
+                            Preview
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWorkerForm({ ...workerForm, panDoc: '' })}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                            title="Remove Document"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => panFileInputRef.current?.click()}
+                        className="w-full px-3 py-2 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-600 hover:bg-slate-100 hover:border-indigo-400 flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Select PAN Card File</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1509,9 +2866,12 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition cursor-pointer"
+                  disabled={isSubmitting}
+                  className={`px-5 py-2 ${
+                    isSubmitting ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer'
+                  } text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition`}
                 >
-                  Update Worker Profile
+                  {isSubmitting ? 'Updating Profile...' : 'Update Worker Profile'}
                 </button>
               </div>
             </form>
@@ -1596,27 +2956,45 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-indigo-600" /> Personal Details
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <span className="text-[10px] text-slate-400 font-semibold uppercase block">Gender</span>
                     <span className="text-xs font-bold text-slate-800 mt-0.5 block">{selectedWorker.gender || 'Male'}</span>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <span className="text-[10px] text-slate-400 font-semibold uppercase block">Date of Birth</span>
-                    <span className="text-xs font-bold text-slate-800 mt-0.5 block">{selectedWorker.dob || '15 Aug 1992'}</span>
+                    <span className="text-xs font-bold text-slate-800 mt-0.5 block">
+                      {formatDateDisplay(selectedWorker.dobFormatted || selectedWorker.dob || selectedWorker.date_of_birth)}
+                    </span>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <span className="text-[10px] text-slate-400 font-semibold uppercase block">Contact Phone</span>
                     <span className="text-xs font-bold text-slate-800 mt-0.5 block">{selectedWorker.phone || 'N/A'}</span>
                   </div>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Emergency Phone</span>
+                    <span className="text-xs font-bold text-rose-600 mt-0.5 block">{selectedWorker.emergencyContact || 'N/A'}</span>
+                  </div>
                 </div>
-                <div className="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Residential Address</span>
-                    <span className="text-xs font-medium text-slate-800 mt-0.5 block leading-relaxed">
-                      {selectedWorker.address || 'Plot 42, Focal Point Phase IV, Ludhiana, Punjab'}
-                    </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2.5">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase block">Current Address</span>
+                      <span className="text-xs font-medium text-slate-800 mt-0.5 block leading-relaxed">
+                        {selectedWorker.address || 'Industrial Focal Point, Ludhiana, Punjab'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase block">Permanent Hometown Address</span>
+                      <span className="text-xs font-medium text-slate-800 mt-0.5 block leading-relaxed">
+                        {selectedWorker.permanentAddress || 'Same as current address'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1637,7 +3015,9 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                   </div>
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <span className="text-[10px] text-slate-400 font-semibold uppercase block">Join Date</span>
-                    <span className="text-xs font-bold text-slate-800 mt-0.5 block">{selectedWorker.joinDate}</span>
+                    <span className="text-xs font-bold text-slate-800 mt-0.5 block">
+                      {formatDateDisplay(selectedWorker.joinDateFormatted || selectedWorker.joinDate || selectedWorker.joining_date)}
+                    </span>
                   </div>
                 </div>
                 {selectedWorker.workerType === 'Contractor' && (
@@ -1648,6 +3028,24 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                     <span className="font-bold text-amber-900">{selectedWorker.contractorAgency || 'Apex Manpower Services'}</span>
                   </div>
                 )}
+
+                {/* Salary Policy View Box */}
+                <div className="mt-3 p-3.5 rounded-xl bg-indigo-50/60 border border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Assigned Salary Policy</span>
+                    <span className="text-xs font-bold text-indigo-950 mt-0.5 block">
+                      {selectedWorker.salaryPolicy
+                        ? [...PERMANENT_POLICIES, ...CONTRACTOR_POLICIES].find(p => p.id === selectedWorker.salaryPolicy)?.title || selectedWorker.salaryPolicy
+                        : 'Fully fixed salary with absent affecting their salary'}
+                    </span>
+                  </div>
+                  <div className="sm:text-right">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Policy Base Wage</span>
+                    <span className="text-sm font-extrabold text-indigo-600 font-mono">
+                      ₹ {selectedWorker.policyRate || selectedWorker.baseWage || 0}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* SECTION C: Salary Banking Details (Secure / Masked by Default) */}
@@ -1685,7 +3083,7 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
                       {selectedWorker.bankAccount
                         ? showBankDetails
                           ? selectedWorker.bankAccount
-                          : `•••• •••• •••• ${selectedWorker.bankAccount.slice(-4)}`
+                          : maskBankAccount(selectedWorker.bankAccount)
                         : 'Not Provided (Cash Payment)'}
                     </span>
                   </div>
@@ -1707,23 +3105,134 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
 
               {/* SECTION D: Statutory KYC (Aadhaar & PAN) */}
               <div className="pt-2">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-indigo-600" /> Statutory KYC Records
-                </h4>
+                <div className="flex items-center justify-between mb-2.5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-indigo-600" /> Statutory KYC Records &amp; Documents
+                  </h4>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Admin Only Access
+                  </span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Aadhaar Card</span>
-                    <span className="text-xs font-bold font-mono text-slate-800 mt-1 block">
-                      {selectedWorker.aadharNumber ? selectedWorker.aadharNumber : 'Pending Submission'}
-                    </span>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase block">Aadhaar Card</span>
+                      <span className="text-xs font-bold font-mono text-slate-800 mt-1 block">
+                        {selectedWorker.aadharNumber
+                          ? showBankDetails
+                            ? selectedWorker.aadharNumber
+                            : maskAadhaar(selectedWorker.aadharNumber)
+                          : 'Pending Submission'}
+                      </span>
+                    </div>
+                    {selectedWorker.aadharDoc ? (
+                      <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                        <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> File Available
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAdminDocPreview({ title: `${selectedWorker.name}'s Aadhaar Card`, data: selectedWorker.aadharDoc })}
+                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1"
+                        >
+                          <Eye className="w-3 h-3" /> View Doc
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[10.5px] text-slate-400 mt-2 block">No document file uploaded</span>
+                    )}
                   </div>
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">PAN Card</span>
-                    <span className="text-xs font-bold font-mono uppercase text-slate-800 mt-1 block">
-                      {selectedWorker.panNumber ? selectedWorker.panNumber : 'Pending Submission'}
-                    </span>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase block">PAN Card</span>
+                      <span className="text-xs font-bold font-mono uppercase text-slate-800 mt-1 block">
+                        {selectedWorker.panNumber ? selectedWorker.panNumber : 'Pending Submission'}
+                      </span>
+                    </div>
+                    {selectedWorker.panDoc ? (
+                      <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                        <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> File Available
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAdminDocPreview({ title: `${selectedWorker.name}'s PAN Card`, data: selectedWorker.panDoc })}
+                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1"
+                        >
+                          <Eye className="w-3 h-3" /> View Doc
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[10.5px] text-slate-400 mt-2 block">No document file uploaded</span>
+                    )}
                   </div>
                 </div>
+              </div>
+
+              {/* Worker Payment & Outstanding Balance Section */}
+              <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ReceiptText className="w-4 h-4 text-indigo-700" />
+                    <span className="text-xs font-bold text-indigo-950 uppercase tracking-wide">
+                      Wage Disbursal & Settlement Status
+                    </span>
+                  </div>
+                  {workerPayableSummary && (
+                    <span className="text-xs font-mono font-bold text-amber-700 bg-amber-100/80 px-2.5 py-0.5 rounded-md">
+                      Outstanding: ₹{Number(workerPayableSummary.total_outstanding || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  )}
+                </div>
+
+                {workerPayableSummary ? (
+                  <div className="space-y-2">
+                    {/* Settlement lines */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      {workerPayableSummary.settlements?.map((s, idx) => (
+                        <div key={idx} className="p-2.5 bg-white rounded-lg border border-indigo-100/80 flex items-center justify-between shadow-2xs">
+                          <div>
+                            <div className="font-bold text-slate-800">{s.period_name}</div>
+                            <div className="text-[10px] text-slate-400">
+                              Net: ₹{Number(s.net_payable).toLocaleString('en-IN')} • Paid: ₹{Number(s.paid_amount).toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                            s.payment_status === 'Paid'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : s.payment_status === 'Partially Paid'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {s.payment_status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Quick Disburse Button */}
+                    {onNavigatePayments && (
+                      <div className="pt-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsViewModalOpen(false);
+                            onNavigatePayments();
+                          }}
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          <span>Record Payment Entry</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-500 italic">
+                    Loading live wage settlements...
+                  </div>
+                )}
               </div>
 
               {/* Bottom Plant Verification pill */}
@@ -1761,6 +3270,93 @@ export const WorkersPage = ({ onNavigateBack, onLogout, onNavigateDepartment, on
             </div>
           </div>
         </div>
+      )}
+
+      {/* ===================== ADMIN CONFIDENTIAL DOCUMENT VIEWER MODAL ===================== */}
+      {adminDocPreview && (
+        <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-300 animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+            <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm leading-tight text-white">{adminDocPreview.title}</h4>
+                  <p className="text-[10px] text-amber-300 font-medium">Confidential Statutory Record • Authorized HR Admin Eyes Only</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdminDocPreview(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-100 flex-1 overflow-auto flex items-center justify-center min-h-[300px]">
+              {adminDocPreview.data?.startsWith('data:image/') || adminDocPreview.data?.startsWith('http') || adminDocPreview.data?.startsWith('/') ? (
+                <img
+                  src={adminDocPreview.data}
+                  alt={adminDocPreview.title}
+                  className="max-h-[70vh] max-w-full rounded-xl object-contain shadow-md border border-slate-200"
+                />
+              ) : adminDocPreview.data?.startsWith('data:application/pdf') ? (
+                <iframe
+                  src={adminDocPreview.data}
+                  title={adminDocPreview.title}
+                  className="w-full h-[65vh] rounded-xl border border-slate-300 bg-white"
+                />
+              ) : (
+                <div className="text-center p-6 bg-white rounded-xl border border-slate-200 shadow-sm max-w-md">
+                  <FileText className="w-12 h-12 text-indigo-500 mx-auto mb-2" />
+                  <p className="text-xs font-semibold text-slate-800 mb-1">{adminDocPreview.title}</p>
+                  <p className="text-[11px] text-slate-500 font-mono break-all line-clamp-3 bg-slate-50 p-2 rounded border border-slate-200">
+                    {adminDocPreview.data}
+                  </p>
+                  <a
+                    href={adminDocPreview.data}
+                    target="_blank"
+                    rel="noreferrer"
+                    download="document"
+                    className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download Document
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3 bg-white border-t border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" /> Securely Stored in Database
+              </span>
+              <button
+                type="button"
+                onClick={() => setAdminDocPreview(null)}
+                className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                Close Viewer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== PAYMENT FORUM MODAL ===================== */}
+      {payWorkerModal && (
+        <PaymentForumModal
+          isOpen={Boolean(payWorkerModal)}
+          onClose={() => setPayWorkerModal(null)}
+          initialWorkerId={payWorkerModal.workerId || payWorkerModal.worker_id}
+          initialWorkerName={payWorkerModal.name}
+          initialCategory="Salary"
+          title={`Make Payment - ${payWorkerModal.name}`}
+          onSuccess={() => {
+            loadInitialData();
+          }}
+        />
       )}
     </div>
   );

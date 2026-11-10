@@ -83,15 +83,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'paysphere.wsgi.application'
 
-# Database Configuration
-# Defaults to PostgreSQL, with configurable environment variables.
-DB_ENGINE = os.getenv('DB_ENGINE', 'django.db.backends.postgresql')
-DB_NAME = os.getenv('DB_NAME', 'paysphere_db')
-DB_USER = os.getenv('DB_USER', 'paysphere_user')
+# Permanent Local SQLite Database Configuration
+# Stored permanently at backend/db.sqlite3 inside the project repository
+SQLITE_DB_PATH = (BASE_DIR / 'db.sqlite3').resolve()
+
+# Backup Directory for local database backups
+BACKUP_DIR = (BASE_DIR.parent / 'database_backups').resolve()
+BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+
+# Primary database engine defaults to persistent local SQLite
+DB_ENGINE = os.getenv('DB_ENGINE', 'django.db.backends.sqlite3')
+DB_NAME = os.getenv('DB_NAME', 'db.sqlite3')
+DB_USER = os.getenv('DB_USER', '')
 DB_PASSWORD = os.getenv('DB_PASSWORD', '')
-DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
-DB_PORT = os.getenv('DB_PORT', '5432')
-AUTO_SQLITE_FALLBACK = os.getenv('AUTO_SQLITE_FALLBACK', 'True').lower() in ('true', '1', 'yes')
+DB_HOST = os.getenv('DB_HOST', '')
+DB_PORT = os.getenv('DB_PORT', '')
 
 def _is_service_reachable(host, port_str):
     try:
@@ -104,17 +110,13 @@ def _is_service_reachable(host, port_str):
     except Exception:
         return False
 
-# Determine whether to use PostgreSQL or fallback to SQLite
+# Determine whether to use PostgreSQL (if explicitly requested and available) or default to permanent SQLite
 use_postgres = False
 if DB_ENGINE == 'django.db.backends.postgresql':
-    if AUTO_SQLITE_FALLBACK:
-        if _is_service_reachable(DB_HOST, DB_PORT):
-            use_postgres = True
-        else:
-            # PostgreSQL service is not reachable on the host machine
-            use_postgres = False
-    else:
+    if DB_HOST and DB_PORT and _is_service_reachable(DB_HOST, DB_PORT):
         use_postgres = True
+    else:
+        use_postgres = False
 
 if use_postgres:
     DATABASES = {
@@ -131,9 +133,29 @@ else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': SQLITE_DB_PATH,
+            'OPTIONS': {
+                'timeout': 30,  # 30-second timeout avoids "database is locked" errors
+            },
         }
     }
+
+# SQLite Concurrency & Integrity Optimization
+from django.db.backends.signals import connection_created
+from django.dispatch import receiver
+
+@receiver(connection_created)
+def configure_sqlite_pragmas(sender, connection, **kwargs):
+    """
+    Enforces transaction-safe WAL mode, foreign keys, and 30s busy timeout
+    for permanent local SQLite operation across multiple days and restarts.
+    """
+    if connection.vendor == 'sqlite':
+        with connection.cursor() as cursor:
+            cursor.execute("PRAGMA foreign_keys = ON;")
+            cursor.execute("PRAGMA journal_mode = WAL;")
+            cursor.execute("PRAGMA synchronous = NORMAL;")
+            cursor.execute("PRAGMA busy_timeout = 30000;")
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

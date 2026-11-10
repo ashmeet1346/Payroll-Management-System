@@ -4,9 +4,10 @@ from .models import Contractor, Contract, ContractorWorkerAssignment, Contractor
 
 @admin.register(Contractor)
 class ContractorAdmin(admin.ModelAdmin):
-    list_display = ['contractor_id', 'name', 'contact_person', 'phone', 'is_active', 'total_assigned_workers']
-    search_fields = ['contractor_id', 'name', 'contact_person', 'phone']
-    list_filter = ['is_active']
+    list_display = ['contractor_id', 'name', 'contact_person', 'phone', 'assigned_department', 'gst_number', 'is_active', 'total_assigned_workers']
+    search_fields = ['contractor_id', 'name', 'contact_person', 'phone', 'gst_number']
+    list_filter = ['is_active', 'assigned_department']
+
 
 
 @admin.register(Contract)

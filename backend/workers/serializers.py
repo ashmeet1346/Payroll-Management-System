@@ -3,6 +3,20 @@ from datetime import datetime
 from rest_framework import serializers
 from departments.models import Department
 from departments.serializers import DepartmentSerializer
+from core.validators import (
+    validate_name_string,
+    validate_indian_mobile,
+    validate_email_address,
+    validate_date_not_future,
+    validate_dob_and_calculate_age,
+    validate_aadhaar_number,
+    validate_pan_number,
+    validate_bank_account_number,
+    validate_ifsc_code,
+    validate_positive_amount,
+    mask_aadhaar,
+    mask_bank_account,
+)
 from .models import Worker, WorkerWageHistory, WorkerDepartmentHistory
 
 
@@ -42,6 +56,12 @@ class WorkerSerializer(serializers.ModelSerializer):
             'ifsc_code',
             'aadhar_number',
             'pan_number',
+            'emergency_contact',
+            'permanent_address',
+            'aadhar_doc',
+            'pan_doc',
+            'salary_policy',
+            'policy_rate',
             'created_at',
             'updated_at',
         ]
@@ -58,6 +78,12 @@ class WorkerSerializer(serializers.ModelSerializer):
             'ifsc_code': {'required': False, 'allow_blank': True},
             'aadhar_number': {'required': False, 'allow_blank': True},
             'pan_number': {'required': False, 'allow_blank': True},
+            'emergency_contact': {'required': False, 'allow_blank': True},
+            'permanent_address': {'required': False, 'allow_blank': True},
+            'aadhar_doc': {'required': False, 'allow_blank': True},
+            'pan_doc': {'required': False, 'allow_blank': True},
+            'salary_policy': {'required': False, 'allow_blank': True},
+            'policy_rate': {'required': False},
         }
 
     @staticmethod
@@ -85,6 +111,12 @@ class WorkerSerializer(serializers.ModelSerializer):
             'aadharNumber': 'aadhar_number',
             'panNumber': 'pan_number',
             'contractorAgency': 'contractor_agency',
+            'emergencyContact': 'emergency_contact',
+            'permanentAddress': 'permanent_address',
+            'aadharDoc': 'aadhar_doc',
+            'panDoc': 'pan_doc',
+            'salaryPolicy': 'salary_policy',
+            'policyRate': 'policy_rate',
         }
         mutable_data = data.copy() if hasattr(data, 'copy') else dict(data)
         for camel, snake in field_map.items():
@@ -110,18 +142,33 @@ class WorkerSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         ret['workerId'] = instance.worker_id
         ret['workerType'] = instance.worker_type
-        ret['joinDate'] = instance.joining_date.strftime('%d %b %Y') if instance.joining_date else ''
-        ret['dob'] = instance.dob.strftime('%d %b %Y') if instance.dob else ''
+        # ISO YYYY-MM-DD for form inputs (<input type="date">)
+        ret['joinDate'] = instance.joining_date.strftime('%Y-%m-%d') if instance.joining_date else ''
+        ret['joinDateRaw'] = instance.joining_date.strftime('%Y-%m-%d') if instance.joining_date else ''
+        ret['joinDateFormatted'] = instance.joining_date.strftime('%d %b %Y') if instance.joining_date else ''
+        ret['joining_date'] = instance.joining_date.strftime('%Y-%m-%d') if instance.joining_date else ''
+        ret['dob'] = instance.dob.strftime('%Y-%m-%d') if instance.dob else ''
+        ret['dobRaw'] = instance.dob.strftime('%Y-%m-%d') if instance.dob else ''
+        ret['dobFormatted'] = instance.dob.strftime('%d %b %Y') if instance.dob else ''
         ret['department'] = instance.department.name if instance.department else ''
         ret['wageBasis'] = instance.wage_basis
         ret['baseWage'] = float(instance.base_wage)
         ret['overtimeEligible'] = instance.overtime_eligible
         ret['bankAccount'] = instance.bank_account
+        ret['maskedBankAccount'] = mask_bank_account(instance.bank_account)
         ret['ifscCode'] = instance.ifsc_code
         ret['aadharNumber'] = instance.aadhar_number
+        ret['maskedAadhar'] = mask_aadhaar(instance.aadhar_number)
         ret['panNumber'] = instance.pan_number
         ret['contractorAgency'] = instance.contractor_agency
+        ret['emergencyContact'] = instance.emergency_contact
+        ret['permanentAddress'] = instance.permanent_address
+        ret['aadharDoc'] = instance.aadhar_doc
+        ret['panDoc'] = instance.pan_doc
+        ret['salaryPolicy'] = instance.salary_policy
+        ret['policyRate'] = float(instance.policy_rate)
         return ret
+
 
     def validate_worker_id(self, value):
         cleaned_id = value.strip().upper()
@@ -137,22 +184,42 @@ class WorkerSerializer(serializers.ModelSerializer):
         return cleaned_id
 
     def validate_name(self, value):
-        cleaned_name = value.strip()
-        if not cleaned_name:
-            raise serializers.ValidationError('Full name cannot be blank.')
-        if len(cleaned_name) < 2:
-            raise serializers.ValidationError('Name must be at least 2 characters long.')
-        return cleaned_name
+        return validate_name_string(value, field_name='Full name', min_len=2, max_len=150, required=True)
 
     def validate_phone(self, value):
-        if not value:
-            return value
-        cleaned = re.sub(r'[\s\-\+\(\)]', '', value)
-        if cleaned and not cleaned.isdigit():
-            raise serializers.ValidationError('Phone number can only contain digits, spaces, and standard formatting symbols (+, -).')
-        if cleaned and len(cleaned) < 7:
-            raise serializers.ValidationError('Phone number is too short.')
-        return value.strip()
+        return validate_indian_mobile(value, field_name='Phone number', required=False)
+
+    def validate_emergency_contact(self, value):
+        return validate_indian_mobile(value, field_name='Emergency contact', required=False)
+
+    def validate_email(self, value):
+        return validate_email_address(value, required=False)
+
+    def validate_joining_date(self, value):
+        if value:
+            return validate_date_not_future(value, field_name='Joining date')
+        return value
+
+    def validate_dob(self, value):
+        if value:
+            d, _ = validate_dob_and_calculate_age(value, min_age=18, max_age=100)
+            return d
+        return value
+
+    def validate_aadhar_number(self, value):
+        return validate_aadhaar_number(value, required=False)
+
+    def validate_pan_number(self, value):
+        return validate_pan_number(value, required=False)
+
+    def validate_bank_account(self, value):
+        return validate_bank_account_number(value, required=False)
+
+    def validate_ifsc_code(self, value):
+        return validate_ifsc_code(value, required=False)
+
+    def validate_base_wage(self, value):
+        return validate_positive_amount(value, field_name='Base wage', allow_zero=False)
 
     def validate_status(self, value):
         valid_statuses = [c[0] for c in Worker.STATUS_CHOICES]

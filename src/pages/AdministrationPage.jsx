@@ -53,7 +53,8 @@ import {
   FileText,
   FileSpreadsheet,
   Printer,
-  ChevronDown
+  ChevronDown,
+  ReceiptText
 } from 'lucide-react';
 import PaySphereLogo from '../components/PaySphereLogo';
 
@@ -121,6 +122,7 @@ export const AdministrationPage = ({
   onNavigateContractor,
   onNavigateSalary,
   onNavigateAdvance,
+  onNavigatePayments,
   onNavigateReports
 }) => {
   const [activeNav, setActiveNav] = useState('Administration Setting');
@@ -206,6 +208,7 @@ export const AdministrationPage = ({
     { name: 'Contractor', icon: HardHat },
     { name: 'Salary', icon: Banknote },
     { name: 'Advance', icon: HandCoins },
+    { name: 'Payment Entry', icon: ReceiptText },
     { name: 'Reports', icon: FileBarChart },
     { name: 'Administration Setting', icon: Settings }
   ];
@@ -415,9 +418,11 @@ export const AdministrationPage = ({
           {/* User Profile Card */}
           <div className="px-4 mb-3">
             <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 border border-indigo-400/20 text-indigo-200 flex items-center justify-center font-semibold text-base shrink-0">
-                A
-              </div>
+              <img
+                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+                alt="Ashmeet Admin"
+                className="w-10 h-10 rounded-lg object-cover border border-white/20 shrink-0 shadow-sm"
+              />
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-semibold text-white truncate leading-tight">Ashmeet</span>
                 <span className="text-xs text-indigo-300/70 font-normal mt-0.5">Admin (Super Admin)</span>
@@ -455,6 +460,8 @@ export const AdministrationPage = ({
                       onNavigateSalary();
                     } else if (item.name === 'Advance' && onNavigateAdvance) {
                       onNavigateAdvance();
+                    } else if (item.name === 'Payment Entry' && onNavigatePayments) {
+                      onNavigatePayments();
                     } else if (item.name === 'Reports' && onNavigateReports) {
                       onNavigateReports();
                     } else if (item.name === 'Administration Setting') {

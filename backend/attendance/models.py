@@ -133,3 +133,37 @@ class AttendanceImportBatch(TimeStampedModel):
 
     def __str__(self):
         return f"Import Batch {self.file_name} ({self.upload_timestamp:%Y-%m-%d %H:%M})"
+
+
+class AttendancePunch(TimeStampedModel):
+    """
+    Raw biometric attendance punches logged from terminal devices or mobile checks.
+    Feeds directly into daily AttendanceRecord aggregation.
+    """
+    PUNCH_IN = 'IN'
+    PUNCH_OUT = 'OUT'
+    PUNCH_AUTO = 'AUTO'
+
+    PUNCH_TYPE_CHOICES = [
+        (PUNCH_IN, 'Check In'),
+        (PUNCH_OUT, 'Check Out'),
+        (PUNCH_AUTO, 'Auto Detect'),
+    ]
+
+    worker = models.ForeignKey('workers.Worker', on_delete=models.CASCADE, related_name='attendance_punches')
+    punch_time = models.DateTimeField(db_index=True, help_text='Exact timestamp of the biometric punch')
+    punch_type = models.CharField(max_length=10, choices=PUNCH_TYPE_CHOICES, default=PUNCH_AUTO)
+    device_id = models.CharField(max_length=100, blank=True, default='', help_text='Biometric machine terminal ID')
+    location = models.CharField(max_length=100, blank=True, default='', help_text='Physical plant gate / station')
+    raw_data = models.JSONField(default=dict, blank=True, help_text='Raw payload from biometric machine')
+    is_processed = models.BooleanField(default=False, db_index=True)
+    processed_record = models.ForeignKey(AttendanceRecord, on_delete=models.SET_NULL, null=True, blank=True, related_name='punches')
+    notes = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-punch_time']
+        verbose_name = 'Attendance Punch'
+        verbose_name_plural = 'Attendance Punches'
+
+    def __str__(self):
+        return f"Punch: {self.worker.worker_id} @ {self.punch_time:%Y-%m-%d %H:%M:%S} ({self.punch_type})"

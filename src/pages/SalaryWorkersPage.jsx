@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { WorkerService } from '../services/api';
 import {
   Users,
   Calendar,
@@ -189,6 +190,39 @@ export default function SalaryWorkersPage({ onBackToSalaryModules }) {
   const [selectedWorkerForDetails, setSelectedWorkerForDetails] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    WorkerService.getAll()
+      .then((allWorkers) => {
+        if (!isMounted) return;
+        if (Array.isArray(allWorkers)) {
+          const relevant = allWorkers.filter(
+            (w) => w.salaryPolicy === 'TIME_BASED' || w.wageBasis === 'Daily' || w.wageBasis === 'Hourly' || (!w.salaryPolicy && w.workerType !== 'Contractor')
+          );
+          const mapped = relevant.map((w, idx) => ({
+            id: w.workerId || `SW0${idx + 1}`,
+            name: w.name,
+            department: w.department || 'Production',
+            designation: w.designation || 'Worker',
+            photo: w.photo || SAMPLE_AVATARS[0],
+            dailyRate: parseFloat(w.policyRate || w.baseWage || 800),
+            otRatePerHour: Math.round(parseFloat(w.policyRate || w.baseWage || 800) / 8 * 2),
+            attendanceBonus: 1000,
+            statutoryPF: Math.round(parseFloat(w.policyRate || w.baseWage || 800) * 26 * 0.12),
+            advanceDeduction: 0,
+            dailyLogs: generateWorkerLogs(idx, parseFloat(w.policyRate || w.baseWage || 800)),
+          }));
+          setWorkers(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load salary workers:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -550,8 +584,15 @@ export default function SalaryWorkersPage({ onBackToSalaryModules }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredWorkers.map((worker) => {
-                  const summary = calculateWorkerSummary(worker);
+                {filteredWorkers.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="py-12 text-center text-xs text-slate-400">
+                      No salary workers registered under this policy yet. Create workers in the Workers module to begin computing salaries.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredWorkers.map((worker) => {
+                    const summary = calculateWorkerSummary(worker);
 
                   return (
                     <tr
@@ -664,7 +705,7 @@ export default function SalaryWorkersPage({ onBackToSalaryModules }) {
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>

@@ -2,8 +2,8 @@ from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Department
-from .serializers import DepartmentSerializer
+from .models import Department, Designation
+from .serializers import DepartmentSerializer, DesignationSerializer
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
@@ -36,3 +36,18 @@ class DepartmentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK
             )
         return super().destroy(request, *args, **kwargs)
+
+
+class DesignationViewSet(viewsets.ModelViewSet):
+    """
+    API ViewSet for viewing and managing Designations.
+    """
+    queryset = Designation.objects.all()
+    serializer_class = DesignationSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'department']
+    search_fields = ['title', 'description', 'department__name']
+    ordering_fields = ['title', 'created_at', 'id']
+    ordering = ['title']
+

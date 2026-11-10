@@ -21,7 +21,7 @@ class ContractorTests(APITestCase):
 
     def test_create_contractor_success(self):
         payload = {
-            'contractor_id': 'CON-001',
+            'contractor_id': 'CON001',
             'name': 'Apex Manpower Agency',
             'contact_person': 'Suresh Sharma',
             'phone': '9876543210',
@@ -30,19 +30,36 @@ class ContractorTests(APITestCase):
         }
         res = self.client.post('/api/contractors/', payload)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(res.data['contractor_id'], 'CON-001')
+        self.assertEqual(res.data['contractor_id'], 'CON001')
         self.assertEqual(res.data['name'], 'Apex Manpower Agency')
 
     def test_duplicate_contractor_id_rejected(self):
-        Contractor.objects.create(contractor_id='CON-001', name='Apex Manpower')
+        Contractor.objects.create(contractor_id='CON001', name='Apex Manpower')
         res = self.client.post('/api/contractors/', {
-            'contractor_id': 'CON-001',
+            'contractor_id': 'CON001',
             'name': 'Duplicate Agency'
         })
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_contractor_name_with_numbers_rejected(self):
+        res = self.client.post('/api/contractors/', {
+            'contractor_id': 'CON002',
+            'name': 'Agency 123'
+        })
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('name', res.data)
+
+    def test_contractor_invalid_code_rejected(self):
+        # Must be 3 letters + 3 digits
+        res = self.client.post('/api/contractors/', {
+            'contractor_id': 'CON-001',
+            'name': 'Valid Agency Name'
+        })
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('contractor_id', res.data)
+
     def test_contractor_worker_assignment(self):
-        contractor = Contractor.objects.create(contractor_id='CON-002', name='Zenith Workers')
+        contractor = Contractor.objects.create(contractor_id='CON002', name='Zenith Workers')
         res = self.client.post('/api/contractors/assignments/', {
             'contractor': contractor.id,
             'worker': self.worker.id,
@@ -54,7 +71,7 @@ class ContractorTests(APITestCase):
         self.assertEqual(contractor.total_assigned_workers, 1)
 
     def test_contractor_bill_workflow(self):
-        contractor = Contractor.objects.create(contractor_id='CON-003', name='Delta Works')
+        contractor = Contractor.objects.create(contractor_id='CON003', name='Delta Works')
         bill = ContractorBill.objects.create(
             invoice_number='INV-2026-001',
             invoice_date='2026-10-15',

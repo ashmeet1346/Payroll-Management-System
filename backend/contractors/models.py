@@ -17,13 +17,31 @@ class Contractor(TimeStampedModel):
         help_text='Unique identifier for contractor (e.g. CON-001)'
     )
     name = models.CharField(max_length=200, help_text='Agency or Contractor business name')
-    contact_person = models.CharField(max_length=150, blank=True, default='')
-    phone = models.CharField(max_length=30, blank=True, default='')
+    contact_person = models.CharField(max_length=150, blank=True, default='', help_text='Owner or representative name')
+    phone = models.CharField(max_length=30, blank=True, default='', help_text='Primary mobile number')
+    alternate_phone = models.CharField(max_length=30, blank=True, default='', help_text='Alternate contact mobile')
     email = models.EmailField(blank=True, default='')
-    address = models.TextField(blank=True, default='')
-    pan_number = models.CharField(max_length=20, blank=True, default='')
-    gst_number = models.CharField(max_length=30, blank=True, default='')
+    address = models.TextField(blank=True, default='', help_text='Current operating address')
+    permanent_address = models.TextField(blank=True, default='', help_text='Permanent registered address')
+    aadhar_number = models.CharField(max_length=30, blank=True, default='', help_text='Aadhaar number of owner')
+    aadhar_doc = models.TextField(blank=True, default='', help_text='Uploaded Aadhaar card document scan or data')
+    pan_number = models.CharField(max_length=20, blank=True, default='', help_text='PAN number')
+    pan_doc = models.TextField(blank=True, default='', help_text='Uploaded PAN card document scan or data')
+    bank_name = models.CharField(max_length=100, blank=True, default='', help_text='Bank name')
+    bank_account = models.CharField(max_length=50, blank=True, default='', help_text='Bank account number')
+    ifsc_code = models.CharField(max_length=20, blank=True, default='', help_text='Bank IFSC code')
+    assigned_department = models.ForeignKey(
+        'departments.Department',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_contractors',
+        help_text='Primary service / assigned department'
+    )
+    gst_number = models.CharField(max_length=30, blank=True, default='', help_text='GSTIN if applicable')
+    labour_license = models.CharField(max_length=100, blank=True, default='', help_text='Labour licence number')
     is_active = models.BooleanField(default=True)
+
 
     class Meta:
         ordering = ['contractor_id']

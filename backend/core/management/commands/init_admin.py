@@ -27,25 +27,30 @@ class Command(BaseCommand):
             default=os.getenv('DJANGO_SUPERUSER_EMAIL', 'ashmeet@paysphere.local'),
             help='Super admin email'
         )
+        parser.add_argument(
+            '--purge-sample',
+            action='store_true',
+            default=False,
+            help='Explicitly purge sample workers and departments (disabled by default)'
+        )
 
     def handle(self, *args, **options):
         username = options['username']
         password = options['password']
         email = options['email']
+        purge = options['purge_sample']
 
-        self.stdout.write(self.style.NOTICE("Purging any sample/dummy records..."))
-        deleted_workers = Worker.objects.all().delete()[0]
-        deleted_departments = Department.objects.all().delete()[0]
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Removed sample data: {deleted_workers} workers, {deleted_departments} departments."
+        if purge:
+            self.stdout.write(self.style.WARNING("Explicitly purging sample records..."))
+            deleted_workers = Worker.objects.all().delete()[0]
+            deleted_departments = Department.objects.all().delete()[0]
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Removed data: {deleted_workers} workers, {deleted_departments} departments."
+                )
             )
-        )
-
-        # Remove any other non-superadmin or lingering user accounts
-        other_users = User.objects.exclude(username=username).delete()[0]
-        if other_users:
-            self.stdout.write(self.style.NOTICE(f"Removed {other_users} other user account(s)."))
+        else:
+            self.stdout.write(self.style.NOTICE("Preserving all existing records and database state."))
 
         # Create or update the single super admin user
         user, created = User.objects.get_or_create(username=username)

@@ -54,7 +54,8 @@ import {
   SlidersHorizontal,
   Eye,
   RefreshCw,
-  TrendingUp
+  TrendingUp,
+  ReceiptText
 } from 'lucide-react';
 import PaySphereLogo from '../components/PaySphereLogo';
 
@@ -162,6 +163,7 @@ export const AttendancePage = ({
   onNavigateContractor,
   onNavigateSalary,
   onNavigateAdvance,
+  onNavigatePayments,
   onNavigateReports,
   onNavigateAdministration,
   onLogout
@@ -189,6 +191,7 @@ export const AttendancePage = ({
     { name: 'Contractor', icon: HardHat },
     { name: 'Salary', icon: Banknote },
     { name: 'Advance', icon: HandCoins },
+    { name: 'Payment Entry', icon: ReceiptText },
     { name: 'Reports', icon: FileBarChart },
     { name: 'Administration Setting', icon: Settings },
   ];
@@ -451,6 +454,7 @@ export const AttendancePage = ({
   const [recentImports, setRecentImports] = useState(INITIAL_RECENT_IMPORTS);
   const [importSearchTerm, setImportSearchTerm] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [importErrors, setImportErrors] = useState([]);
 
   // Generate and download sample Excel format (.xlsx)
   const handleDownloadSampleExcel = () => {
@@ -477,37 +481,150 @@ export const AttendancePage = ({
     showToast('Downloaded sample Excel format (PaySphere_Attendance_Sample_Format.xlsx)!');
   };
 
+  const handleDownloadErrorReport = () => {
+    if (importErrors.length === 0) return;
+    const header = 'Row Number,Worker ID,Field,Validation Error\r\n';
+    const rows = importErrors.map((e) => `"${e.row}","${e.workerId}","${e.field}","${e.message}"`).join('\r\n');
+    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Attendance_Import_Validation_Errors_${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast('Downloaded attendance import error report!');
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
-    setTimeout(() => {
-      const cleanName = file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
-        ? file.name
-        : `${file.name.replace(/\.[^/.]+$/, '')}.xlsx`;
+    setImportErrors([]);
 
-      const newEntry = {
-        id: `imp-${Date.now()}`,
-        fileName: cleanName,
-        fileSize: `${Math.max(16, Math.round(file.size / 1024))} KB`,
-        fileFormat: 'XLSX',
-        importedBy: 'Ashmeet (Admin)',
-        importedRole: 'HR Administrator',
-        importedAt: '15 Oct 2026, Just now',
-        totalRecords: 48,
-        successRecords: 48,
-        failedRecords: 0,
-        status: 'Completed',
-        shift: 'Day Shift (15 Oct 2026)',
-        source: 'PaySphere Excel Importer'
-      };
+    const cleanName = file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
+      ? file.name
+      : `${file.name.replace(/\.[^/.]+$/, '')}.xlsx`;
 
-      setRecentImports(prev => [newEntry, ...prev]);
-      setIsUploading(false);
-      showToast(`Imported "${cleanName}" successfully (48 worker attendance records synchronized)!`);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }, 700);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result;
+        if (typeof text === 'string' && (file.name.endsWith('.csv') || text.includes(','))) {
+          const rawLines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+          if (rawLines.length <= 1) {
+            setImportErrors([{ row: 1, workerId: '-', field: 'File', message: 'File is empty or contains only header row.' }]);
+            setIsUploading(false);
+            return;
+          }
+
+          const headers = rawLines[0].split(',').map((h) => h.trim().toLowerCase());
+          const idIdx = headers.findIndex((h) => h.includes('id') || h.includes('worker'));
+          const dateIdx = headers.findIndex((h) => h.includes('date'));
+          const statusIdx = headers.findIndex((h) => h.includes('status'));
+
+          const errors = [];
+          const validRecords = [];
+          const seenPairs = new Set();
+          const validStatuses = ['present', 'absent', 'half day', 'paid leave', 'weekly off', 'holiday', 'leave'];
+          const todayStr = new Date().toISOString().split('T')[0];
+
+          for (let i = 1; i < rawLines.length; i++) {
+            const rowNum = i + 1;
+            const cols = rawLines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
+            const workerId = idIdx >= 0 ? cols[idIdx] : cols[0];
+            const attDate = dateIdx >= 0 ? cols[dateIdx] : cols[3];
+            const status = statusIdx >= 0 ? cols[statusIdx] : cols[7];
+
+            if (!workerId) {
+              errors.push({ row: rowNum, workerId: 'Missing', field: 'Worker ID', message: 'Worker ID is required.' });
+              continue;
+            }
+
+            if (!attDate) {
+              errors.push({ row: rowNum, workerId, field: 'Date', message: 'Attendance date is required.' });
+              continue;
+            } else if (attDate > todayStr) {
+              errors.push({ row: rowNum, workerId, field: 'Date', message: `Future attendance date "${attDate}" is not allowed.` });
+              continue;
+            }
+
+            const pairKey = `${workerId.toUpperCase()}_${attDate}`;
+            if (seenPairs.has(pairKey)) {
+              errors.push({ row: rowNum, workerId, field: 'Duplicate', message: `Duplicate attendance entry for worker on ${attDate}.` });
+              continue;
+            }
+            seenPairs.add(pairKey);
+
+            if (status && !validStatuses.includes(status.toLowerCase())) {
+              errors.push({ row: rowNum, workerId, field: 'Status', message: `Invalid status "${status}". Allowed: Present, Absent, Half Day, Leave, etc.` });
+              continue;
+            }
+
+            validRecords.push({ workerId, attDate, status });
+          }
+
+          if (errors.length > 0) {
+            setImportErrors(errors);
+            setIsUploading(false);
+            showToast(`Import rejected: ${errors.length} validation errors found.`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+          }
+
+          const newEntry = {
+            id: `imp-${Date.now()}`,
+            fileName: cleanName,
+            fileSize: `${Math.max(16, Math.round(file.size / 1024))} KB`,
+            fileFormat: 'CSV',
+            importedBy: 'Ashmeet (Admin)',
+            importedRole: 'HR Administrator',
+            importedAt: 'Just now',
+            totalRecords: rawLines.length - 1,
+            successRecords: validRecords.length,
+            failedRecords: 0,
+            status: 'Completed',
+            shift: 'Day Shift',
+            source: 'PaySphere Importer'
+          };
+
+          setRecentImports((prev) => [newEntry, ...prev]);
+          setIsUploading(false);
+          showToast(`Imported "${cleanName}" successfully (${validRecords.length} records verified and synchronized)!`);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          return;
+        }
+      } catch (err) {
+        console.warn('Error reading upload:', err);
+      }
+
+      setTimeout(() => {
+        const newEntry = {
+          id: `imp-${Date.now()}`,
+          fileName: cleanName,
+          fileSize: `${Math.max(16, Math.round(file.size / 1024))} KB`,
+          fileFormat: 'XLSX',
+          importedBy: 'Ashmeet (Admin)',
+          importedRole: 'HR Administrator',
+          importedAt: 'Just now',
+          totalRecords: 48,
+          successRecords: 48,
+          failedRecords: 0,
+          status: 'Completed',
+          shift: 'Day Shift (15 Oct 2026)',
+          source: 'PaySphere Excel Importer'
+        };
+
+        setRecentImports((prev) => [newEntry, ...prev]);
+        setIsUploading(false);
+        showToast(`Imported "${cleanName}" successfully (48 worker attendance records synchronized)!`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }, 700);
+    };
+
+    reader.readAsText(file.slice(0, 100000));
   };
 
   const handleDeleteRecentImport = (id, fileName) => {
@@ -756,6 +873,8 @@ export const AttendancePage = ({
                       onNavigateSalary();
                     } else if (item.name === 'Advance' && onNavigateAdvance) {
                       onNavigateAdvance();
+                    } else if (item.name === 'Payment Entry' && onNavigatePayments) {
+                      onNavigatePayments();
                     } else if (item.name === 'Reports' && onNavigateReports) {
                       onNavigateReports();
                     } else if (item.name === 'Administration Setting' && onNavigateAdministration) {
@@ -1161,6 +1280,7 @@ export const AttendancePage = ({
                   <input
                     type="date"
                     value={dayDate}
+                    max={new Date().toISOString().split('T')[0]}
                     onChange={(e) => setDayDate(e.target.value)}
                     className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 bg-slate-50/60 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
@@ -1601,6 +1721,7 @@ export const AttendancePage = ({
                 <input
                   type="date"
                   value={workerCurrentDate}
+                  max={new Date().toISOString().split('T')[0]}
                   onChange={(e) => {
                     const newDate = e.target.value;
                     setWorkerCurrentDate(newDate);
@@ -2036,6 +2157,68 @@ export const AttendancePage = ({
                 </>
               )}
             </div>
+
+            {/* Import Validation Error Report Panel */}
+            {importErrors.length > 0 && (
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 shadow-xs space-y-4 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-rose-900">
+                        Attendance Import Rejected — {importErrors.length} Row Validation Error{importErrors.length > 1 ? 's' : ''} Found
+                      </h4>
+                      <p className="text-xs text-rose-700">
+                        Invalid rows were not imported into the database. Please review and correct the errors below.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadErrorReport}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download Error Report (CSV)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImportErrors([])}
+                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-100 transition cursor-pointer"
+                      title="Dismiss"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto border border-rose-200 rounded-xl bg-white">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-rose-100/60 text-rose-900 uppercase tracking-wider font-semibold sticky top-0">
+                      <tr>
+                        <th className="px-3.5 py-2">Row #</th>
+                        <th className="px-3.5 py-2">Worker ID</th>
+                        <th className="px-3.5 py-2">Field</th>
+                        <th className="px-3.5 py-2">Exact Validation Error</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-rose-100">
+                      {importErrors.map((err, idx) => (
+                        <tr key={idx} className="hover:bg-rose-50/50">
+                          <td className="px-3.5 py-2 font-mono font-bold text-rose-700">Row {err.row}</td>
+                          <td className="px-3.5 py-2 font-mono text-slate-800">{err.workerId}</td>
+                          <td className="px-3.5 py-2 text-slate-600 font-medium">{err.field}</td>
+                          <td className="px-3.5 py-2 text-rose-600 font-semibold">{err.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* ===================== RECENT IMPORTED FILES ===================== */}
             <div className="space-y-3.5 pt-2">

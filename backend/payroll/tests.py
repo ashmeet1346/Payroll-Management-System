@@ -138,3 +138,127 @@ class PayrollCalculationAndWorkflowTests(APITestCase):
         self.assertEqual(res_slip.status_code, status.HTTP_200_OK)
         self.assertEqual(res_slip.data['worker']['worker_id'], 'W-PAY-1')
         self.assertEqual(res_slip.data['net_payable'], float(line.net_payable))
+
+
+class WorkerPaymentVoucherTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='fin_officer', password='Password@123')
+        self.client.force_authenticate(user=self.user)
+        self.dept = Department.objects.create(name='Heavy Press')
+        self.worker = Worker.objects.create(
+            worker_id='W-FIN-01',
+            name='Kavita Sharma',
+            department=self.dept,
+            wage_basis='Monthly',
+            base_wage=Decimal('22000.00'),
+            bank_account='99281726351',
+            ifsc_code='HDFC0001122',
+            status='Active'
+        )
+        self.period = PayrollPeriod.objects.create(
+            name='October 2026',
+            month=10,
+            year=2026,
+            start_date='2026-10-01',
+            end_date='2026-10-31',
+            status='Approved',
+            total_net_payable=Decimal('22000.00')
+        )
+        self.line = PayrollLine.objects.create(
+            payroll_period=self.period,
+            worker=self.worker,
+            net_payable=Decimal('22000.00'),
+            paid_amount=Decimal('0.00'),
+            outstanding_balance=Decimal('22000.00'),
+            payment_status='Unpaid'
+        )
+
+    def test_bank_accounts_auto_seed_and_list(self):
+        res = self.client.get('/api/payroll/bank-accounts/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertTrue(len(res.data) >= 3)
+        names = [acc['account_name'] for acc in res.data]
+        self.assertTrue(any('HDFC' in n for n in names))
+        self.assertTrue(any('Cash' in n for n in names))
+
+    def test_worker_payable_summary(self):
+        res = self.client.get(f'/api/payroll/workers/{self.worker.worker_id}/payable-summary/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['worker']['name'], 'Kavita Sharma')
+        self.assertEqual(len(res.data['settlements']), 1)
+        self.assertEqual(Decimal(str(res.data['settlements'][0]['outstanding_balance'])), Decimal('22000.00'))
+
+    def test_payment_voucher_posting_balance_and_journal(self):
+        # 1. Get bank account
+        res_acc = self.client.get('/api/payroll/bank-accounts/')
+        bank_acc = res_acc.data[0]
+        initial_balance = Decimal(str(bank_acc['current_balance']))
+
+        # 2. Post partial payment of 10000
+        pay_data = {
+            'worker_id': self.worker.worker_id,
+            'settlement_period': 'October 2026',
+            'payroll_line_id': self.line.id,
+            'amount_paid': '10000.00',
+            'payment_mode': 'Bank Transfer',
+            'bank_account_id': bank_acc['id'],
+            'transaction_reference': 'UTR-HDFC-998811',
+            'narration': 'First partial payment for Oct 2026',
+        }
+        res_post = self.client.post('/api/payroll/payment-vouchers/', pay_data)
+        self.assertEqual(res_post.status_code, status.HTTP_201_CREATED)
+        voucher_id = res_post.data['id']
+        self.assertTrue(res_post.data['voucher_number'].startswith('PAY-'))
+        self.assertEqual(Decimal(str(res_post.data['outstanding_after'])), Decimal('12000.00'))
+
+        # Check bank balance deducted
+        res_acc_after = self.client.get('/api/payroll/bank-accounts/')
+        updated_bank = next(a for a in res_acc_after.data if a['id'] == bank_acc['id'])
+        self.assertEqual(Decimal(str(updated_bank['current_balance'])), initial_balance - Decimal('10000.00'))
+
+        # Check payroll line updated
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.paid_amount, Decimal('10000.00'))
+        self.assertEqual(self.line.outstanding_balance, Decimal('12000.00'))
+        self.assertEqual(self.line.payment_status, 'Partially Paid')
+
+        # Check double-entry journal lines
+        journal = res_post.data['journal_entry']
+        self.assertIsNotNone(journal)
+        self.assertEqual(len(journal['lines']), 2)
+        debit_line = next(l for l in journal['lines'] if l['entry_type'] == 'Debit')
+        credit_line = next(l for l in journal['lines'] if l['entry_type'] == 'Credit')
+        self.assertEqual(debit_line['account_name'], 'Worker Payable')
+        self.assertEqual(Decimal(str(debit_line['amount'])), Decimal('10000.00'))
+        self.assertEqual(Decimal(str(credit_line['amount'])), Decimal('10000.00'))
+
+        # 3. Test overpayment rejection: attempting to pay 15000 when balance is 12000
+        pay_over = {
+            'worker_id': self.worker.worker_id,
+            'settlement_period': 'October 2026',
+            'payroll_line_id': self.line.id,
+            'amount_paid': '15000.00',
+            'payment_mode': 'Bank Transfer',
+            'bank_account_id': bank_acc['id'],
+        }
+        res_over = self.client.post('/api/payroll/payment-vouchers/', pay_over)
+        self.assertEqual(res_over.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('cannot exceed the outstanding balance', res_over.data['error'])
+
+        # 4. Test reversal / cancellation of the voucher
+        res_rev = self.client.post(f'/api/payroll/payment-vouchers/{voucher_id}/reverse/', {
+            'reason': 'Wrong UTR entered'
+        })
+        self.assertEqual(res_rev.status_code, status.HTTP_200_OK)
+
+        # Bank balance restored
+        res_acc_restored = self.client.get('/api/payroll/bank-accounts/')
+        restored_bank = next(a for a in res_acc_restored.data if a['id'] == bank_acc['id'])
+        self.assertEqual(Decimal(str(restored_bank['current_balance'])), initial_balance)
+
+        # Payroll line restored
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.paid_amount, Decimal('0.00'))
+        self.assertEqual(self.line.outstanding_balance, Decimal('22000.00'))
+        self.assertEqual(self.line.payment_status, 'Unpaid')
+

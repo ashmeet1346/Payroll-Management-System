@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Wallet,
   Receipt,
+  ReceiptText,
   ArrowDownRight,
   CheckCircle2,
   Clock,
@@ -25,7 +26,7 @@ import {
 import PaySphereLogo from '../components/PaySphereLogo';
 import { DashboardService, WorkerService, DataStoreService } from '../services/api';
 
-export const AdminDashboard = ({ onLogout, onNavigateWorkers, onNavigateDepartment, onNavigateAttendance, onNavigateContractor, onNavigateSalary, onNavigateAdvance, onNavigateReports, onNavigateAdministration }) => {
+export const AdminDashboard = ({ onLogout, onNavigateWorkers, onNavigateDepartment, onNavigateAttendance, onNavigateContractor, onNavigateSalary, onNavigateAdvance, onNavigatePayments, onNavigateReports, onNavigateAdministration }) => {
   const [activeNav, setActiveNav] = useState('Dashboard');
   const [stats, setStats] = useState({
     total_workers: 0,
@@ -35,26 +36,70 @@ export const AdminDashboard = ({ onLogout, onNavigateWorkers, onNavigateDepartme
     leave_today: 0,
     payroll_month: 'None',
     total_salary: 0,
+    total_salary_till_date: 0,
+    total_deductions: 0,
     net_salary: 0,
     total_paid: 0,
     outstanding_salary: 0,
     total_advances_outstanding: 0,
+    this_month_advances: 0,
+    fixed_advance_balance: 0,
   });
 
-  useEffect(() => {
-    let isMounted = true;
+  const monthAdvanceTotal = Number(stats.this_month_advances || stats.month_advance_total || 0);
+  const fixedAdvanceBalance = Number(stats.fixed_advance_balance || 0);
 
-    DashboardService.getStats()
-      .then((data) => {
-        if (!isMounted || !data) return;
-        setStats(data);
-      })
-      .catch((err) => {
-        console.warn('Dashboard stats load error:', err);
+  const loadLiveStats = async () => {
+    try {
+      const [backendStats, regAdvances, fixLoans] = await Promise.all([
+        DashboardService.getStats().catch(() => null),
+        DataStoreService.get('advances_regular', []).catch(() => []),
+        DataStoreService.get('advances_fixed', []).catch(() => []),
+      ]);
+
+      let monthAdvTotal = 0;
+      let pendingAdvTotal = 0;
+      (Array.isArray(regAdvances) ? regAdvances : []).forEach((w) => {
+        (w.transactions || []).forEach((tx) => {
+          const amt = Number(tx.amount || 0);
+          monthAdvTotal += amt;
+          if (tx.status !== 'Deducted in Salary') {
+            pendingAdvTotal += amt;
+          }
+        });
       });
 
+      let fixedAdvBal = 0;
+      (Array.isArray(fixLoans) ? fixLoans : []).forEach((l) => {
+        const recovered = (l.repayments || []).reduce((s, r) => s + Number(r.emiAmount || 0), 0);
+        fixedAdvBal += Math.max(0, Number(l.principalAmount || 0) - recovered);
+      });
+
+      setStats((prev) => ({
+        ...prev,
+        ...(backendStats || {}),
+        this_month_advances: monthAdvTotal || backendStats?.this_month_advances || 0,
+        fixed_advance_balance: fixedAdvBal || backendStats?.fixed_advance_balance || 0,
+        total_advances_outstanding: (pendingAdvTotal + fixedAdvBal) || backendStats?.total_advances_outstanding || 0,
+      }));
+    } catch (err) {
+      console.warn('Dashboard stats load error:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadLiveStats();
+
+    const handleSync = () => {
+      loadLiveStats();
+    };
+
+    window.addEventListener('paysphere-payment-completed', handleSync);
+    window.addEventListener('paysphere-advance-updated', handleSync);
+
     return () => {
-      isMounted = false;
+      window.removeEventListener('paysphere-payment-completed', handleSync);
+      window.removeEventListener('paysphere-advance-updated', handleSync);
     };
   }, []);
 
@@ -67,6 +112,7 @@ export const AdminDashboard = ({ onLogout, onNavigateWorkers, onNavigateDepartme
     { name: 'Contractor', icon: HardHat },
     { name: 'Salary', icon: Banknote },
     { name: 'Advance', icon: HandCoins },
+    { name: 'Payment Entry', icon: ReceiptText },
     { name: 'Reports', icon: FileBarChart },
     { name: 'Administration Setting', icon: Settings },
   ];
@@ -94,10 +140,10 @@ export const AdminDashboard = ({ onLogout, onNavigateWorkers, onNavigateDepartme
       iconColor: 'text-rose-600',
     },
     {
-      title: 'Total Outstanding Advances',
-      value: `₹ ${Number(stats.total_advances_outstanding || 0).toLocaleString('en-IN')}`,
-      subtext: 'Active workforce balances',
-      icon: TrendingUp,
+      title: 'Total Salary Till Date Generated',
+      value: `₹ ${Number(stats.total_salary_till_date ?? stats.total_salary ?? 0).toLocaleString('en-IN')}`,
+      subtext: stats.payroll_month && stats.payroll_month !== 'None' ? `Latest cycle: ${stats.payroll_month}` : 'Cumulative payroll generated',
+      icon: Banknote,
       iconColor: 'text-indigo-900',
     },
   ];
@@ -120,9 +166,11 @@ export const AdminDashboard = ({ onLogout, onNavigateWorkers, onNavigateDepartme
           {/* User Profile Card */}
           <div className="px-4 mb-3">
             <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 border border-indigo-400/20 text-indigo-200 flex items-center justify-center font-semibold text-base shrink-0">
-                A
-              </div>
+              <img
+                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+                alt="Ashmeet Admin"
+                className="w-10 h-10 rounded-lg object-cover border border-white/20 shrink-0 shadow-sm"
+              />
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-semibold text-white truncate leading-tight">Ashmeet</span>
                 <span className="text-xs text-indigo-300/70 font-normal mt-0.5">Admin</span>
@@ -159,6 +207,8 @@ export const AdminDashboard = ({ onLogout, onNavigateWorkers, onNavigateDepartme
                       onNavigateSalary();
                     } else if (item.name === 'Advance' && onNavigateAdvance) {
                       onNavigateAdvance();
+                    } else if (item.name === 'Payment Entry' && onNavigatePayments) {
+                      onNavigatePayments();
                     } else if (item.name === 'Reports' && onNavigateReports) {
                       onNavigateReports();
                     } else if (item.name === 'Administration Setting' && onNavigateAdministration) {

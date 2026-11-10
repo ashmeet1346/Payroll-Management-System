@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { WorkerService, DepartmentService, ContractorService, DataStoreService } from '../services/api';
 import {
   LayoutDashboard,
   Users,
@@ -33,7 +34,8 @@ import {
   Weight,
   Factory,
   Briefcase,
-  X
+  X,
+  ReceiptText
 } from 'lucide-react';
 import PaySphereLogo from '../components/PaySphereLogo';
 
@@ -231,6 +233,7 @@ export default function ReportsPage({
   onNavigateContractor,
   onNavigateSalary,
   onNavigateAdvance,
+  onNavigatePayments,
   onNavigateAdministration,
   onLogout
 }) {
@@ -248,6 +251,132 @@ export default function ReportsPage({
   const [tableSearchQuery, setTableSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
 
+  const [datasets, setDatasets] = useState({
+    worker: [],
+    department: [],
+    attendance: [],
+    salary: [],
+    advance: [],
+    contractor: [],
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([
+      WorkerService.getAll().catch(() => []),
+      DepartmentService.getAll().catch(() => []),
+      ContractorService.getAll().catch(() => []),
+      DataStoreService.get('attendance_records', []),
+      DataStoreService.get('advances_regular', []),
+      DataStoreService.get('advances_fixed', []),
+    ]).then(([workers, depts, contractors, attendance, regAdv, fixAdv]) => {
+      if (!isMounted) return;
+
+      const workerRows = (workers || []).map((w) => ({
+        id: w.workerId,
+        name: w.name,
+        department: w.department || 'General',
+        designation: w.designation || 'Worker',
+        wageType: w.wageBasis || (w.salaryPolicy === 'TIME_BASED' ? 'Daily' : 'Monthly'),
+        rate: w.policyRate || w.baseWage || 0,
+        joiningDate: w.joinDate || '-',
+        phone: w.phone || '-',
+        bankAccount: w.bankAccount || '-',
+        ifsc: w.ifscCode || '-',
+        shift: 'Day Shift (08:00 - 17:00)',
+        status: w.status || 'Active',
+      }));
+
+      const deptRows = (depts || []).map((d) => ({
+        code: d.code || '-',
+        name: d.name,
+        head: d.head || '-',
+        totalStaff: d.total_workers || 0,
+        activeToday: d.total_workers || 0,
+        monthlyHours: (d.total_workers || 0) * 208,
+        monthlyBudget: (d.total_workers || 0) * 25000,
+        totalWagesPaid: (d.total_workers || 0) * 25000,
+        efficiency: '96%',
+        bayLocation: '-',
+      }));
+
+      const contractorRows = (contractors || []).map((c) => ({
+        contractorCode: c.code || c.contractor_id || '-',
+        agencyName: c.name,
+        owner: c.contact_person || c.owner || '-',
+        phone: c.phone || '-',
+        assignedBay: c.assignedDepartmentName || '-',
+        gstin: c.gstin || '-',
+        labourLicense: c.labourLicense || '-',
+        totalWorkers: c.totalWorkers || 0,
+        pendingPayment: c.pendingPayment || 0,
+        totalPaidYTD: c.totalPaidYTD || 0,
+        complianceStatus: c.complianceStatus || 'Compliant',
+      }));
+
+      const attendanceRows = (attendance || []).map((a) => ({
+        id: a.workerId,
+        name: a.name,
+        department: a.department || 'Production',
+        totalWorkingDays: 26,
+        presentDays: a.status === 'Present' ? 26 : 0,
+        absentDays: a.status === 'Absent' ? 26 : 0,
+        halfDays: 0,
+        leaves: 0,
+        normalHours: 208,
+        overtimeHours: 0,
+        sundayDuties: 0,
+        avgInTime: a.inTime || '08:00 AM',
+        avgOutTime: a.outTime || '05:00 PM',
+        attendanceRate: a.status === 'Present' ? '100%' : '0%',
+      }));
+
+      const allAdvances = [...(regAdv || []), ...(fixAdv || [])];
+      const advanceRows = allAdvances.map((adv) => ({
+        refId: adv.id || adv.advanceId || 'ADV-001',
+        workerId: adv.workerId || '-',
+        workerName: adv.name || adv.workerName || '-',
+        department: adv.department || 'Production',
+        advanceType: adv.principalAmount ? 'Fixed Loan' : 'Monthly Advance',
+        sanctionDate: adv.date || adv.sanctionDate || '2026-10-15',
+        principalAmount: adv.amount || adv.principalAmount || 0,
+        monthlyDeduction: adv.amount || adv.monthlyEmi || 0,
+        balanceOutstanding: adv.amount || adv.principalAmount || 0,
+        recoveryStatus: 'Active',
+      }));
+
+      const salaryRows = (workers || []).map((w) => ({
+        id: w.workerId,
+        name: w.name,
+        department: w.department || 'Production',
+        category: w.workerType || 'Permanent',
+        workingDays: 26,
+        grossSalary: parseFloat(w.policyRate || w.baseWage || 25000),
+        otHours: 0,
+        otAmount: 0,
+        statutoryPF: Math.round(parseFloat(w.policyRate || w.baseWage || 25000) * 0.12),
+        esi: 0,
+        advanceRecovery: 0,
+        netPayable: Math.round(parseFloat(w.policyRate || w.baseWage || 25000) * 0.88),
+        paymentMode: 'Direct Bank NEFT',
+        invoiceStatus: 'Disbursed',
+      }));
+
+      setDatasets({
+        worker: workerRows,
+        department: deptRows,
+        attendance: attendanceRows,
+        salary: salaryRows,
+        advance: advanceRows,
+        contractor: contractorRows,
+      });
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
@@ -262,6 +391,7 @@ export default function ReportsPage({
     { name: 'Contractor', icon: HardHat },
     { name: 'Salary', icon: Banknote },
     { name: 'Advance', icon: HandCoins },
+    { name: 'Payment Entry', icon: ReceiptText },
     { name: 'Reports', icon: FileBarChart },
     { name: 'Administration Setting', icon: Settings },
   ];
@@ -349,10 +479,11 @@ export default function ReportsPage({
   // Filtered Table Rows by search query
   const tableRows = useMemo(() => {
     if (!activeReport || !isReportGenerated) return [];
-    if (!tableSearchQuery.trim()) return activeReport.dataset;
+    const currentDataset = datasets[activeReport.id] || [];
+    if (!tableSearchQuery.trim()) return currentDataset;
 
     const q = tableSearchQuery.toLowerCase();
-    return activeReport.dataset.filter((row) => {
+    return currentDataset.filter((row) => {
       return Object.values(row).some((val) => {
         if (typeof val === 'string' || typeof val === 'number') {
           return String(val).toLowerCase().includes(q);
@@ -360,7 +491,7 @@ export default function ReportsPage({
         return false;
       });
     });
-  }, [activeReport, isReportGenerated, tableSearchQuery]);
+  }, [activeReport, isReportGenerated, tableSearchQuery, datasets]);
 
   return (
     <div className="flex h-screen w-full bg-[#fafbfc] font-sans antialiased overflow-hidden">
@@ -388,9 +519,11 @@ export default function ReportsPage({
           {/* User Profile Card */}
           <div className="px-4 mb-3">
             <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 border border-indigo-400/20 text-indigo-200 flex items-center justify-center font-semibold text-base shrink-0">
-                A
-              </div>
+              <img
+                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+                alt="Ashmeet Admin"
+                className="w-10 h-10 rounded-lg object-cover border border-white/20 shrink-0 shadow-sm"
+              />
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-semibold text-white truncate leading-tight">Ashmeet</span>
                 <span className="text-xs text-indigo-300/70 font-normal mt-0.5">Admin</span>
@@ -429,6 +562,8 @@ export default function ReportsPage({
                       onNavigateSalary();
                     } else if (item.name === 'Advance' && onNavigateAdvance) {
                       onNavigateAdvance();
+                    } else if (item.name === 'Payment Entry' && onNavigatePayments) {
+                      onNavigatePayments();
                     } else if (item.name === 'Reports') {
                       setActiveReportId(null);
                     } else if (item.name === 'Administration Setting' && onNavigateAdministration) {

@@ -103,3 +103,21 @@ class AttendanceCalculationAndWorkflowTests(APITestCase):
         self.assertEqual(res.data['present'], 1)
         self.assertEqual(res.data['absent'], 1)
         self.assertEqual(res.data['total_overtime_hours'], 2.0)
+
+    def test_attendance_punch_creation_and_listing(self):
+        payload = {
+            'worker': self.worker1.id,
+            'punch_time': '2026-10-15T08:05:00Z',
+            'punch_type': 'IN',
+            'device_id': 'BIO-GATE-TEST',
+            'location': 'Gate 1'
+        }
+        res = self.client.post('/api/attendance/punches/', payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.data['worker_id_code'], self.worker1.worker_id)
+        self.assertEqual(res.data['punch_type'], 'IN')
+
+        res_list = self.client.get(f'/api/attendance/punches/?worker={self.worker1.worker_id}')
+        self.assertEqual(res_list.status_code, status.HTTP_200_OK)
+        results = res_list.data if isinstance(res_list.data, list) else res_list.data.get('results', [])
+        self.assertEqual(len(results), 1)

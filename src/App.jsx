@@ -9,6 +9,7 @@ import SalaryPage from './pages/SalaryPage';
 import AdvancePage from './pages/AdvancePage';
 import ReportsPage from './pages/ReportsPage';
 import AdministrationPage from './pages/AdministrationPage';
+import WorkerPaymentEntryPage from './pages/WorkerPaymentEntryPage';
 
 // Map page identifiers to clean URL paths
 const PAGE_ROUTES = {
@@ -19,6 +20,7 @@ const PAGE_ROUTES = {
   contractors: '/contractors',
   salary: '/salary',
   advance: '/advance',
+  payments: '/payments',
   reports: '/reports',
   administration: '/administration',
   login: '/login',
@@ -33,6 +35,8 @@ const ROUTE_TO_PAGE = {
   '/contractors': 'contractors',
   '/salary': 'salary',
   '/advance': 'advance',
+  '/payments': 'payments',
+  '/worker-payment': 'payments',
   '/reports': 'reports',
   '/administration': 'administration',
   '/login': 'login',
@@ -43,6 +47,47 @@ function getPageFromPathname(pathname) {
   const cleanPath = pathname.replace(/\/+$/, '') || '/';
   return ROUTE_TO_PAGE[cleanPath] || 'dashboard';
 }
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("PaySphere UI Error caught by boundary:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full min-h-screen bg-slate-50 flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+            <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 font-bold text-xl">
+              !
+            </div>
+            <h2 className="text-lg font-bold text-slate-900 mb-2">Something went wrong</h2>
+            <p className="text-xs text-slate-500 mb-6 font-mono bg-slate-50 p-3 rounded-lg border border-slate-100 text-left overflow-auto max-h-32">
+              {this.state.error?.message || "An unexpected error occurred while rendering the page."}
+            </p>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                window.location.href = '/dashboard';
+              }}
+              className="px-5 py-2.5 rounded-xl bg-[#11133c] text-white text-xs font-semibold hover:bg-indigo-950 transition cursor-pointer"
+            >
+              Reload Dashboard
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 
 function App() {
   // Authentication state stored in localStorage
@@ -130,8 +175,9 @@ function App() {
   }
 
   return (
-    <div className="w-full min-h-screen">
-      {currentPage === 'administration' ? (
+    <ErrorBoundary>
+      <div className="w-full min-h-screen">
+        {currentPage === 'administration' ? (
         <AdministrationPage
           onNavigateDashboard={() => navigateTo('dashboard')}
           onNavigateWorkers={() => navigateTo('workers')}
@@ -140,7 +186,21 @@ function App() {
           onNavigateContractor={() => navigateTo('contractors')}
           onNavigateSalary={() => navigateTo('salary')}
           onNavigateAdvance={() => navigateTo('advance')}
+          onNavigatePayments={() => navigateTo('payments')}
           onNavigateReports={() => navigateTo('reports')}
+          onLogout={handleLogout}
+        />
+      ) : currentPage === 'payments' ? (
+        <WorkerPaymentEntryPage
+          onNavigateDashboard={() => navigateTo('dashboard')}
+          onNavigateWorkers={() => navigateTo('workers')}
+          onNavigateDepartment={() => navigateTo('departments')}
+          onNavigateAttendance={() => navigateTo('attendance')}
+          onNavigateContractor={() => navigateTo('contractors')}
+          onNavigateSalary={() => navigateTo('salary')}
+          onNavigateAdvance={() => navigateTo('advance')}
+          onNavigateReports={() => navigateTo('reports')}
+          onNavigateAdministration={() => navigateTo('administration')}
           onLogout={handleLogout}
         />
       ) : currentPage === 'reports' ? (
@@ -152,6 +212,7 @@ function App() {
           onNavigateContractor={() => navigateTo('contractors')}
           onNavigateSalary={() => navigateTo('salary')}
           onNavigateAdvance={() => navigateTo('advance')}
+          onNavigatePayments={() => navigateTo('payments')}
           onNavigateAdministration={() => navigateTo('administration')}
           onLogout={handleLogout}
         />
@@ -163,6 +224,7 @@ function App() {
           onNavigateAttendance={() => navigateTo('attendance')}
           onNavigateContractor={() => navigateTo('contractors')}
           onNavigateSalary={() => navigateTo('salary')}
+          onNavigatePayments={() => navigateTo('payments')}
           onNavigateReports={() => navigateTo('reports')}
           onNavigateAdministration={() => navigateTo('administration')}
           onLogout={handleLogout}
@@ -175,6 +237,7 @@ function App() {
           onNavigateAttendance={() => navigateTo('attendance')}
           onNavigateContractor={() => navigateTo('contractors')}
           onNavigateAdvance={() => navigateTo('advance')}
+          onNavigatePayments={() => navigateTo('payments')}
           onNavigateReports={() => navigateTo('reports')}
           onNavigateAdministration={() => navigateTo('administration')}
           onLogout={handleLogout}
@@ -187,6 +250,7 @@ function App() {
           onNavigateAttendance={() => navigateTo('attendance')}
           onNavigateSalary={() => navigateTo('salary')}
           onNavigateAdvance={() => navigateTo('advance')}
+          onNavigatePayments={() => navigateTo('payments')}
           onNavigateReports={() => navigateTo('reports')}
           onNavigateAdministration={() => navigateTo('administration')}
           onLogout={handleLogout}
@@ -199,6 +263,7 @@ function App() {
           onNavigateContractor={() => navigateTo('contractors')}
           onNavigateSalary={() => navigateTo('salary')}
           onNavigateAdvance={() => navigateTo('advance')}
+          onNavigatePayments={() => navigateTo('payments')}
           onNavigateReports={() => navigateTo('reports')}
           onNavigateAdministration={() => navigateTo('administration')}
           onLogout={handleLogout}
@@ -211,6 +276,7 @@ function App() {
           onNavigateContractor={() => navigateTo('contractors')}
           onNavigateSalary={() => navigateTo('salary')}
           onNavigateAdvance={() => navigateTo('advance')}
+          onNavigatePayments={() => navigateTo('payments')}
           onNavigateReports={() => navigateTo('reports')}
           onNavigateAdministration={() => navigateTo('administration')}
           onLogout={handleLogout}
@@ -223,6 +289,7 @@ function App() {
           onNavigateContractor={() => navigateTo('contractors')}
           onNavigateSalary={() => navigateTo('salary')}
           onNavigateAdvance={() => navigateTo('advance')}
+          onNavigatePayments={() => navigateTo('payments')}
           onNavigateReports={() => navigateTo('reports')}
           onNavigateAdministration={() => navigateTo('administration')}
           onLogout={handleLogout}
@@ -236,13 +303,15 @@ function App() {
           onNavigateContractor={() => navigateTo('contractors')}
           onNavigateSalary={() => navigateTo('salary')}
           onNavigateAdvance={() => navigateTo('advance')}
+          onNavigatePayments={() => navigateTo('payments')}
           onNavigateReports={() => navigateTo('reports')}
           onNavigateAdministration={() => navigateTo('administration')}
         />
       ) : (
         <LoginPage onLoginSuccess={handleLoginSuccess} />
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
 

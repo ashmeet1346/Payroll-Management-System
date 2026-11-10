@@ -21,17 +21,18 @@ class WorkerAdmin(admin.ModelAdmin):
         'name',
         'department',
         'designation',
-        'wage_basis',
-        'base_wage',
+        'worker_type',
+        'salary_policy',
+        'policy_rate',
         'phone',
         'status',
-        'worker_type',
         'joining_date'
     )
-    list_filter = ('status', 'worker_type', 'wage_basis', 'department')
+    list_filter = ('status', 'worker_type', 'salary_policy', 'department')
     search_fields = ('worker_id', 'name', 'phone', 'designation', 'contractor_agency')
     ordering = ('worker_id',)
     inlines = [WorkerWageHistoryInline, WorkerDepartmentHistoryInline]
+
 
 
 @admin.register(WorkerWageHistory)

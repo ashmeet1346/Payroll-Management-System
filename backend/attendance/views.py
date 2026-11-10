@@ -11,11 +11,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 import pandas as pd
 
-from .models import Shift, AttendanceRecord, AttendanceImportBatch
+from .models import Shift, AttendanceRecord, AttendanceImportBatch, AttendancePunch
 from .serializers import (
     ShiftSerializer,
     AttendanceRecordSerializer,
     AttendanceImportBatchSerializer,
+    AttendancePunchSerializer,
 )
 from workers.models import Worker
 from departments.models import Department
@@ -52,11 +53,17 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
 
         worker_id = self.request.query_params.get('worker')
         if worker_id:
-            qs = qs.filter(worker__worker_id=worker_id) | qs.filter(worker__id=worker_id)
+            if str(worker_id).isdigit():
+                qs = qs.filter(worker__id=worker_id) | qs.filter(worker__worker_id=worker_id)
+            else:
+                qs = qs.filter(worker__worker_id=worker_id)
 
         dept_id = self.request.query_params.get('department')
         if dept_id and dept_id != 'All':
-            qs = qs.filter(worker__department__name__iexact=dept_id) | qs.filter(worker__department__id=dept_id)
+            if str(dept_id).isdigit():
+                qs = qs.filter(worker__department__id=dept_id) | qs.filter(worker__department__name__iexact=dept_id)
+            else:
+                qs = qs.filter(worker__department__name__iexact=dept_id)
 
         status_val = self.request.query_params.get('status')
         if status_val and status_val != 'All':
@@ -398,3 +405,30 @@ class AttendanceExportView(APIView):
             ])
 
         return response
+
+
+class AttendancePunchListCreateView(generics.ListCreateAPIView):
+    serializer_class = AttendancePunchSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = AttendancePunch.objects.select_related('worker').order_by('-punch_time')
+        worker_id = self.request.query_params.get('worker')
+        if worker_id:
+            if str(worker_id).isdigit():
+                qs = qs.filter(worker__id=worker_id) | qs.filter(worker__worker_id=worker_id)
+            else:
+                qs = qs.filter(worker__worker_id=worker_id)
+        date_str = self.request.query_params.get('date')
+        if date_str:
+            qs = qs.filter(punch_time__date=date_str)
+        is_processed = self.request.query_params.get('is_processed')
+        if is_processed is not None:
+            qs = qs.filter(is_processed=is_processed.lower() in ('true', '1'))
+        return qs
+
+
+class AttendancePunchDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = AttendancePunch.objects.all()
+    serializer_class = AttendancePunchSerializer
+    permission_classes = [IsAuthenticated]
